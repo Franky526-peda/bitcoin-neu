@@ -64,38 +64,41 @@ def save_to_csv(price, pred_1, pred_5, pred_10):
 def app():
     st.title("Bitcoin Predictor")
 
-    # Abrufen des aktuellen Bitcoin-Preises
+    # 1. Preis abrufen
     price = get_btc_price()
 
     if price:
-        # Lade historische Daten (Preise)
+        # 2. Lade bestehende Daten oder starte neu
         if os.path.exists(csv_file):
             df = pd.read_csv(csv_file)
             prices = df['price'].tolist()
         else:
+            df = pd.DataFrame()
             prices = []
 
-        # Füge den aktuellen Preis hinzu und mache eine Vorhersage
+        # 3. Neuen Preis zur Liste hinzufügen
         prices.append(price)
 
-        # Berechne Vorhersagen
-        pred_1, pred_5, pred_10 = make_prediction(prices)
+        # 4. Vorhersagen berechnen, nur wenn genug Daten vorhanden
+        if len(prices) >= 2:
+            pred_1, pred_5, pred_10 = make_prediction(prices)
+        else:
+            pred_1, pred_5, pred_10 = 0, 0, 0  # Platzhalter
 
-        # Speichere den aktuellen Preis und die Vorhersagen in der CSV
+        # 5. Speichern
         save_to_csv(price, pred_1, pred_5, pred_10)
 
-        # Zeige die Ergebnisse in Streamlit an
-        st.write(f"**Aktueller Bitcoin-Preis**: ${price:.2f}")
-        st.write(f"**Vorhersage für 1 Minute**: ${pred_1:.2f}")
-        st.write(f"**Vorhersage für 5 Minuten**: ${pred_5:.2f}")
-        st.write(f"**Vorhersage für 10 Minuten**: ${pred_10:.2f}")
+        # 6. Daten neu laden (mit neuen Werten)
+        df = pd.read_csv(csv_file)
 
-        # Zeige die Historie der Preise und Vorhersagen
-        st.write("### Historie der Preise und Vorhersagen:")
-        st.write(df)
+        # 7. Ergebnisse anzeigen
+        st.markdown(f"### 💰 Aktueller Bitcoin-Preis: **${price:.2f}**")
+        st.markdown(f"- 📈 **Vorhersage in 1 Minute:** ${pred_1:.2f}")
+        st.markdown(f"- ⏱️ **Vorhersage in 5 Minuten:** ${pred_5:.2f}")
+        st.markdown(f"- ⏳ **Vorhersage in 10 Minuten:** ${pred_10:.2f}")
 
-    # Automatisches Update jede Minute
-    st.button("Aktualisieren", on_click=app)
-
-if __name__ == "__main__":
-    app()
+        # 8. Verlauf anzeigen
+        st.write("### Verlauf:")
+        st.dataframe(df)
+    else:
+        st.warning("Konnte aktuellen Bitcoin-Preis nicht abrufen.")

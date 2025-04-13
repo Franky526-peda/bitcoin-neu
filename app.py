@@ -32,25 +32,8 @@ def predict_price(data, minutes):
 
 # Preise sammeln
 prices = []
-with st.spinner("Hole aktuelle Bitcoin-Preise..."):
+with st.spinner("Hole aktuelle Bitcoin-Preise (bitte Geduld, 1 Anfrage pro Minute)..."):
     for i in range(10):
         price = get_btc_price()
         if price is not None:
             prices.append(price)
-        else:
-            st.warning("Konnte Preis nicht abrufen. Versuche es später erneut.")
-            break
-        time.sleep(60)  # In Live-Betrieb auf 60 setzen
-
-# Wenn genug Preise da sind, Vorhersage machen
-if len(prices) == 10:
-    pred_1 = predict_price(prices, 1)
-    pred_5 = predict_price(prices, 5)
-    pred_10 = predict_price(prices, 10)
-
-    st.success(f"Aktueller Preis: ${prices[-1]:.2f}")
-    st.info(f"📈 Vorhersage in 1 Minute: ${pred_1:.2f}")
-    st.info(f"📈 Vorhersage in 5 Minuten: ${pred_5:.2f}")
-    st.info(f"📈 Vorhersage in 10 Minuten: ${pred_10:.2f}")
-else:
-    st.error("Nicht genug Preisdaten gesammelt.")

@@ -7,10 +7,11 @@ from sklearn.linear_model import LinearRegression
 from streamlit_autorefresh import st_autorefresh
 import matplotlib.pyplot as plt
 
+# Seite konfigurieren – MUSS als erstes Streamlit-Kommando kommen!
+st.set_page_config(page_title="Bitcoin Predictor", layout="centered")
+
 # Automatisch jede Minute neu laden
 st_autorefresh(interval=60 * 1000, key="auto_refresh")
-
-st.set_page_config(page_title="Bitcoin Predictor", layout="centered")
 
 # Funktion: RSI ohne externe Bibliothek
 def compute_rsi(prices, window=14):
@@ -101,3 +102,4 @@ def app():
 
 if __name__ == "__main__":
     app()
+

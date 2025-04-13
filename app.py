@@ -18,19 +18,14 @@ import requests
 
 def get_btc_price():
     try:
-        url = "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-        response = requests.get(url, headers=headers)
+        url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
+        response = requests.get(url)
         response.raise_for_status()  # Überprüft, ob die Antwort erfolgreich war
         data = response.json()
-        return float(data['price'])
+        return data['bitcoin']['usd']
     except requests.exceptions.RequestException as e:
-        st.error(f"Fehler beim Abrufen des Bitcoin-Preises von Binance: {e}")
+        st.error(f"Fehler beim Abrufen des Bitcoin-Preises von CoinGecko: {e}")
         return None
-
-
 
 # 🔵 Simuliere historische Preise (z. B. leicht schwankend um aktuellen Preis)
 def simulate_historic_prices(current_price, num_points=10):

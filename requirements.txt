@@ -1,6 +1,6 @@
+ta
 pandas
 numpy
 requests
 streamlit
-ta
 matplotlib

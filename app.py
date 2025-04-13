@@ -6,6 +6,7 @@ import os
 from datetime import datetime
 from sklearn.linear_model import LinearRegression
 import numpy as np
+from streamlit_autorefresh import st_autorefresh
 
 # CSV-Datei zum Speichern der Daten
 csv_file = "bitcoin_data.csv"
@@ -60,11 +61,10 @@ def save_to_csv(price, pred_1, pred_5, pred_10):
 
 # Hauptfunktion der Streamlit App
 def app():
-    # Automatischer Reload alle 60 Sekunden
-    st.set_page_config(page_title="Bitcoin Predictor", layout="centered")
-    st.experimental_set_query_params(_=int(time.time()))  # Hack für manuelles Reload über URL
-    st.markdown("<meta http-equiv='refresh' content='60'>", unsafe_allow_html=True)
+    # Auto-Refresh alle 60 Sekunden
+    st_autorefresh(interval=60 * 1000, key="refresh")
 
+    st.set_page_config(page_title="Bitcoin Predictor", layout="centered")
     st.title("💹 Bitcoin Predictor – Live-Vorhersagen")
     st.markdown("Diese App sagt den Bitcoin-Preis für 1, 5 und 10 Minuten in die Zukunft voraus – basierend auf gesammelten Daten. Die Seite aktualisiert sich automatisch alle **60 Sekunden**.")
 

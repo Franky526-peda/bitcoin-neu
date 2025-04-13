@@ -8,8 +8,9 @@ from datetime import datetime
 # Muss GANZ OBEN stehen
 st.set_page_config(page_title="Bitcoin Predictor", layout="centered")
 
-# Auto-refresh alle 60 Sekunden
-st_autorefresh(interval=60 * 1000)
+# Funktion zur automatischen Aktualisierung
+def auto_refresh():
+    st.experimental_rerun()
 
 # CSV-Datei zur Speicherung
 CSV_FILE = "btc_data.csv"
@@ -101,7 +102,10 @@ def app():
     # Verlauf anzeigen
     st.line_chart(df.set_index("Timestamp")["Price"])
 
+    # Auto-Refresh alle 60 Sekunden
+    time.sleep(60)
+    auto_refresh()
+
 if __name__ == "__main__":
     app()
-
 

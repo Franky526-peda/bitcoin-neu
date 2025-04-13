@@ -1,104 +1,104 @@
-import requests
-import pandas as pd
-import time
-from sklearn.linear_model import LinearRegression
 import streamlit as st
+import pandas as pd
+import requests
+import time
+import os
 from datetime import datetime
-import os  # ❗️Dieser Import hat gefehlt
+from sklearn.linear_model import LinearRegression
+import numpy as np
 
+# CSV-Datei zum Speichern der Daten
+csv_file = "bitcoin_data.csv"
 
-# 📂 Speicherort der CSV-Datei, um die Daten zu speichern
-csv_file = "bitcoin_prices.csv"
-
-# 📡 Abruf des Bitcoin-Preises von CoinGecko
+# Funktion zum Abrufen des aktuellen Bitcoin-Preises von CoinGecko
 def get_btc_price():
+    url = "https://api.coingecko.com/api/v3/simple/price"
+    params = {
+        "ids": "bitcoin",
+        "vs_currencies": "usd"
+    }
     try:
-        url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
-        response = requests.get(url)
-        response.raise_for_status()
+        response = requests.get(url, params=params)
         data = response.json()
-        return data['bitcoin']['usd']
-    except requests.exceptions.RequestException as e:
-        st.error(f"Fehler beim Abrufen des Bitcoin-Preises: {e}")
+        return float(data["bitcoin"]["usd"])
+    except Exception as e:
+        print("Fehler beim Abrufen des Preises:", e)
         return None
 
-# 📝 Vorhersage basierend auf den gespeicherten Preisen
+# Funktion zur Preisvorhersage mit Linear Regression
 def make_prediction(prices):
-    if len(prices) < 2:  # Um ein Modell zu trainieren, benötigen wir mindestens 2 Datenpunkte
-        return 0, 0, 0  # Rückgabe von 0,0,0 als Platzhalter
-    
-    # X = Zeitstempel, Y = Preis
-    X = [[i] for i in range(len(prices))]
-    y = prices
-    
+    X = np.arange(len(prices)).reshape(-1, 1)
+    y = np.array(prices).reshape(-1, 1)
+
     model = LinearRegression()
     model.fit(X, y)
-    
-    # Vorhersagen für 1, 5 und 10 Minuten (1, 5, 10 Perioden nach dem letzten Punkt)
-    pred_1 = model.predict([[len(prices) + 1]])[0]
-    pred_5 = model.predict([[len(prices) + 5]])[0]
-    pred_10 = model.predict([[len(prices) + 10]])[0]
-    
+
+    pred_1 = model.predict([[len(prices) + 1]])[0][0]
+    pred_5 = model.predict([[len(prices) + 5]])[0][0]
+    pred_10 = model.predict([[len(prices) + 10]])[0][0]
+
     return pred_1, pred_5, pred_10
 
-# 📝 Funktion zum Speichern der Preise und Vorhersagen in einer CSV-Datei
+# Funktion zum Speichern der Daten in eine CSV-Datei
 def save_to_csv(price, pred_1, pred_5, pred_10):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     new_data = {
-        'timestamp': time.time(),
-        'price': price,
-        'pred_1': pred_1,
-        'pred_5': pred_5,
-        'pred_10': pred_10
+        "Zeit": timestamp,
+        "Preis": price,
+        "Vorhersage_1min": pred_1,
+        "Vorhersage_5min": pred_5,
+        "Vorhersage_10min": pred_10
     }
-    
+
     if os.path.exists(csv_file):
         df = pd.read_csv(csv_file)
-        new_df = pd.DataFrame([new_data])
-        df = pd.concat([df, new_df], ignore_index=True)
     else:
-        df = pd.DataFrame([new_data])
-    
+        df = pd.DataFrame()
+
+    df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
     df.to_csv(csv_file, index=False)
 
-# 🧑‍💻 Streamlit App
+# Streamlit App
 def app():
-    st.title("Bitcoin Predictor")
+    st.title("💹 Bitcoin Predictor – Live-Vorhersagen")
+    st.markdown("Diese App sagt den Bitcoin-Preis für 1, 5 und 10 Minuten in die Zukunft voraus – basierend auf gesammelten Daten.")
 
-    # 1. Preis abrufen
+    # Aktuellen Preis abrufen
     price = get_btc_price()
 
     if price:
-        # 2. Lade bestehende Daten oder starte neu
+        # Daten einlesen oder initialisieren
         if os.path.exists(csv_file):
             df = pd.read_csv(csv_file)
-            prices = df['price'].tolist()
+            prices = df["Preis"].tolist()
         else:
             df = pd.DataFrame()
             prices = []
 
-        # 3. Neuen Preis zur Liste hinzufügen
         prices.append(price)
 
-        # 4. Vorhersagen berechnen, nur wenn genug Daten vorhanden
+        # Vorhersage nur, wenn genug Daten vorhanden sind
         if len(prices) >= 2:
             pred_1, pred_5, pred_10 = make_prediction(prices)
         else:
-            pred_1, pred_5, pred_10 = 0, 0, 0  # Platzhalter
+            pred_1, pred_5, pred_10 = 0, 0, 0
 
-        # 5. Speichern
+        # Speichern
         save_to_csv(price, pred_1, pred_5, pred_10)
 
-        # 6. Daten neu laden (mit neuen Werten)
+        # Aktualisierte Daten anzeigen
         df = pd.read_csv(csv_file)
 
-        # 7. Ergebnisse anzeigen
-        st.markdown(f"### 💰 Aktueller Bitcoin-Preis: **${price:.2f}**")
-        st.markdown(f"- 📈 **Vorhersage in 1 Minute:** ${pred_1:.2f}")
-        st.markdown(f"- ⏱️ **Vorhersage in 5 Minuten:** ${pred_5:.2f}")
-        st.markdown(f"- ⏳ **Vorhersage in 10 Minuten:** ${pred_10:.2f}")
+        st.success(f"Aktueller Bitcoin-Preis: **${price:.2f}**")
+        st.write(f"📈 Vorhersage in 1 Minute: **${pred_1:.2f}**")
+        st.write(f"⏱️ Vorhersage in 5 Minuten: **${pred_5:.2f}**")
+        st.write(f"⏳ Vorhersage in 10 Minuten: **${pred_10:.2f}**")
 
-        # 8. Verlauf anzeigen
-        st.write("### Verlauf:")
+        st.markdown("---")
+        st.markdown("### 📊 Verlauf der Preise und Vorhersagen")
         st.dataframe(df)
     else:
-        st.warning("Konnte aktuellen Bitcoin-Preis nicht abrufen.")
+        st.error("❌ Fehler beim Abrufen des Bitcoin-Preises.")
+
+if __name__ == "__main__":
+    app()

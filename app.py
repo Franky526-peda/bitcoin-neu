@@ -40,7 +40,7 @@ with st.spinner("Hole aktuelle Bitcoin-Preise (bitte Geduld, 1 Anfrage pro Minut
         else:
             st.warning("Konnte Preis nicht abrufen. Versuche es später erneut.")
             break
-        time.sleep(20)  # Nur 1 Anfrage pro Minute (Rate-Limit einhalten)
+        time.sleep(30)  # Nur 1 Anfrage pro Minute (Rate-Limit einhalten)
 
 # Wenn genug Preise da sind, Vorhersage machen
 if len(prices) == 10:

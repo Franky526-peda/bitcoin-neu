@@ -6,6 +6,7 @@ from datetime import datetime
 from sklearn.linear_model import LinearRegression
 
 # Abrufen von historischen Bitcoin-Preisen von CoinGecko
+# Abrufen von historischen Bitcoin-Preisen von CoinGecko
 def get_historical_btc_prices():
     url = "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart"
     params = {
@@ -16,6 +17,9 @@ def get_historical_btc_prices():
     try:
         response = requests.get(url, params=params)
         data = response.json()
+        
+        # Ausgabe der vollständigen Antwort der API
+        st.write("API-Antwort:", data)  # Zeigt die gesamte Antwort an
         
         # Prüfen, ob der "prices"-Schlüssel vorhanden ist
         if "prices" not in data:
@@ -30,6 +34,8 @@ def get_historical_btc_prices():
     except ValueError as e:
         st.error(f"Fehler in den API-Daten: {e}")
         return []
+
+
 
 # Berechnung der technischen Indikatoren
 def calculate_indicators(df):

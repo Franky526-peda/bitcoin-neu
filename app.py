@@ -1,128 +1,108 @@
-import streamlit as st
 import pandas as pd
-import requests
 import numpy as np
+import requests
+import matplotlib.pyplot as plt
+import streamlit as st
 from datetime import datetime
-from sklearn.linear_model import LinearRegression
+from ta.trend import MACD
+from ta.momentum import RSI
+from ta.volatility import AverageTrueRange
+from ta.trend import SMAIndicator, EMAIndicator
 
-# Abrufen von historischen Bitcoin-Preisen von CoinGecko
-# Abrufen von historischen Bitcoin-Preisen von CoinGecko
 # Abrufen von historischen Bitcoin-Preisen von CoinGecko
 def get_historical_btc_prices():
     url = "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart"
     params = {
         "vs_currency": "usd",
-        "days": "10",  # 10 Tage historische Daten
-        "interval": "daily"  # Intervall in Tagen (statt Minuten)
+        "days": "30",  # 30 Tage historische Daten
+        "interval": "daily"  # Intervall in Tagen
     }
     try:
         response = requests.get(url, params=params)
         data = response.json()
-        
-        # Ausgabe der vollständigen Antwort der API
-        st.write("API-Antwort:", data)  # Zeigt die gesamte Antwort an
         
         # Prüfen, ob der "prices"-Schlüssel vorhanden ist
         if "prices" not in data:
             raise ValueError("Die API-Antwort enthält keinen 'prices'-Schlüssel.")
         
         prices = data["prices"]
-        return [(datetime.utcfromtimestamp(timestamp / 1000), price) for timestamp, price in prices]
+        # Daten umwandeln in pandas DataFrame
+        df = pd.DataFrame(prices, columns=["timestamp", "price"])
+        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+        return df
     
     except requests.exceptions.RequestException as e:
         st.error(f"Fehler beim Abrufen der Bitcoin-Daten: {e}")
-        return []
+        return pd.DataFrame()  # Leerer DataFrame
+    
     except ValueError as e:
         st.error(f"Fehler in den API-Daten: {e}")
-        return []
+        return pd.DataFrame()
 
-
-
-
-
-# Berechnung der technischen Indikatoren
+# Berechnen der technischen Indikatoren
 def calculate_indicators(df):
-    df['SMA_10'] = df['Preis'].rolling(window=10).mean()  # 10-Minuten SMA
-    df['EMA_10'] = df['Preis'].ewm(span=10, adjust=False).mean()  # 10-Minuten EMA
+    # Berechnung des Simple Moving Average (SMA)
+    sma = SMAIndicator(df['price'], window=10)
+    df['SMA_10'] = sma.sma_indicator()
 
-    delta = df['Preis'].diff()
-    gain = delta.where(delta > 0, 0)
-    loss = -delta.where(delta < 0, 0)
+    # Berechnung des Exponential Moving Average (EMA)
+    ema = EMAIndicator(df['price'], window=10)
+    df['EMA_10'] = ema.ema_indicator()
 
-    avg_gain = gain.rolling(window=14).mean()
-    avg_loss = loss.rolling(window=14).mean()
+    # Berechnung des Relative Strength Index (RSI)
+    rsi = RSI(df['price'], window=14)
+    df['RSI'] = rsi.rsi()
 
-    rs = avg_gain / avg_loss
-    df['RSI'] = 100 - (100 / (1 + rs))
-
-    df['EMA_12'] = df['Preis'].ewm(span=12, adjust=False).mean()
-    df['EMA_26'] = df['Preis'].ewm(span=26, adjust=False).mean()
-    df['MACD'] = df['EMA_12'] - df['EMA_26']
-    df['MACD_signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
+    # Berechnung des MACD
+    macd = MACD(df['price'], window_slow=26, window_fast=12, window_sign=9)
+    df['MACD'] = macd.macd()
+    df['MACD_signal'] = macd.macd_signal()
 
     return df
 
-# Vorhersage mit Linearer Regression unter Einbeziehung der Indikatoren
+# Vorhersagefunktion (Dummy-Funktion für die Vorhersage)
 def make_prediction(df):
-    # Entfernen von Zeilen mit NaN-Werten
-    df = df.dropna()
-    
-    if len(df) < 2:  # Mindestens 2 Datenpunkte für die Vorhersage notwendig
+    if len(df) < 2:
         return "Nicht genügend Daten für Vorhersage"
+    else:
+        # Dummy-Vorhersage basierend auf letzten Preis
+        latest_price = df['price'].iloc[-1]
+        return latest_price * 1.01  # Beispielvorhersage, z.B. 1% Preisanstieg
 
-    X = df[['Preis', 'SMA_10', 'EMA_10', 'RSI', 'MACD']]
-    y = df['Preis']
-
-    # Lineares Modell trainieren
-    model = LinearRegression()
-    model.fit(X, y)
-
-    # Vorhersage für den nächsten Punkt
-    future_data = pd.DataFrame({
-        'Preis': [df['Preis'].iloc[-1]],  
-        'SMA_10': [df['SMA_10'].iloc[-1]],
-        'EMA_10': [df['EMA_10'].iloc[-1]],
-        'RSI': [df['RSI'].iloc[-1]],
-        'MACD': [df['MACD'].iloc[-1]],
-    })
-
-    prediction = model.predict(future_data)
-
-    return prediction[0]
-
-# Hauptfunktion
+# Streamlit App
 def app():
+    st.set_page_config(page_title="Bitcoin Predictor", layout="centered")
     st.title("Bitcoin Predictor – Live Vorhersagen mit erweiterten Features")
     
     # Abruf von historischen Bitcoin-Daten
-    historical_data = get_historical_btc_prices()
-
-    if len(historical_data) == 0:
-        st.error("Es konnten keine Bitcoin-Daten abgerufen werden. Bitte später erneut versuchen.")
+    df = get_historical_btc_prices()
+    
+    if df.empty:
         return
-
-    # Erstellen des DataFrames mit historischen Preisen
-    df = pd.DataFrame(historical_data, columns=["Zeit", "Preis"])
-
-    # Berechnung der technischen Indikatoren
+    
+    # Berechne technische Indikatoren
     df = calculate_indicators(df)
-
-    # Berechnung der Vorhersage unter Einbeziehung der technischen Indikatoren
-    pred_1 = make_prediction(df)
-
-    # Anzeige der aktuellen Preisvorhersage und der technischen Indikatoren
-    st.write(f"Aktueller Preis: {df['Preis'].iloc[-1]}")
-    st.write(f"Vorhersage für 1 Minute: {pred_1}")
-
+    
+    # Anzeige des aktuellen Bitcoin-Preises
+    current_price = df['price'].iloc[-1]
+    st.write(f"Aktueller Preis: ${current_price:.2f}")
+    
+    # Vorhersage
+    prediction = make_prediction(df)
+    st.write(f"Vorhersage für 1 Minute: ${prediction:.2f}")
+    
+    # Anzeige der technischen Indikatoren
     st.write("Technische Indikatoren:")
-    st.write(f"SMA_10: {df['SMA_10'].iloc[-1]}")
-    st.write(f"EMA_10: {df['EMA_10'].iloc[-1]}")
-    st.write(f"RSI: {df['RSI'].iloc[-1]}")
-    st.write(f"MACD: {df['MACD'].iloc[-1]}")
-    st.write(f"MACD Signal: {df['MACD_signal'].iloc[-1]}")
-
-    # Anzeige eines Diagramms der Preisentwicklung
-    st.line_chart(df.set_index('Zeit'))
-
+    st.write(f"SMA_10: {df['SMA_10'].iloc[-1]:.2f}")
+    st.write(f"EMA_10: {df['EMA_10'].iloc[-1]:.2f}")
+    st.write(f"RSI: {df['RSI'].iloc[-1]:.2f}")
+    st.write(f"MACD: {df['MACD'].iloc[-1]:.2f}")
+    st.write(f"MACD Signal: {df['MACD_signal'].iloc[-1]:.2f}")
+    
+    # Grafische Darstellung
+    st.subheader("Bitcoin Preis und technische Indikatoren")
+    st.line_chart(df[['price', 'SMA_10', 'EMA_10']])
+    
+# Anwendung starten
 if __name__ == "__main__":
     app()

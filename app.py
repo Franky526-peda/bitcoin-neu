@@ -40,7 +40,7 @@ with st.spinner("Hole aktuelle Bitcoin-Preise..."):
         else:
             st.warning("Konnte Preis nicht abrufen. Versuche es später erneut.")
             break
-        time.sleep(1)  # In Live-Betrieb auf 60 setzen
+        time.sleep(60)  # In Live-Betrieb auf 60 setzen
 
 # Wenn genug Preise da sind, Vorhersage machen
 if len(prices) == 10:

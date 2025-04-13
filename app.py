@@ -9,11 +9,11 @@ import matplotlib.pyplot as plt
 # Funktion zum Abrufen der historischen Bitcoin-Preisdaten von CoinGecko
 def get_historical_btc_prices():
     url = "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart"
-    params = {
-        'vs_currency': 'usd',
-        'days': '7',  # Abrufen der letzten 7 Tage (oder nach Bedarf anpassen)
-        'interval': 'minute'
-    }
+params = {
+    'vs_currency': 'usd',
+    'days': '7',  # Abrufen der letzten 7 Tage (oder nach Bedarf anpassen)
+    'interval': 'daily'  # Versuche 'daily' anstelle von 'minute'
+}
     
     response = requests.get(url, params=params)
     data = response.json()

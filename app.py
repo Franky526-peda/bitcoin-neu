@@ -58,12 +58,16 @@ def save_to_csv(price, pred_1, pred_5, pred_10):
     df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
     df.to_csv(csv_file, index=False)
 
-# Streamlit App
+# Hauptfunktion der Streamlit App
 def app():
-    st.title("💹 Bitcoin Predictor – Live-Vorhersagen")
-    st.markdown("Diese App sagt den Bitcoin-Preis für 1, 5 und 10 Minuten in die Zukunft voraus – basierend auf gesammelten Daten.")
+    # Automatischer Reload alle 60 Sekunden
+    st.set_page_config(page_title="Bitcoin Predictor", layout="centered")
+    st.experimental_set_query_params(_=int(time.time()))  # Hack für manuelles Reload über URL
+    st.markdown("<meta http-equiv='refresh' content='60'>", unsafe_allow_html=True)
 
-    # Aktuellen Preis abrufen
+    st.title("💹 Bitcoin Predictor – Live-Vorhersagen")
+    st.markdown("Diese App sagt den Bitcoin-Preis für 1, 5 und 10 Minuten in die Zukunft voraus – basierend auf gesammelten Daten. Die Seite aktualisiert sich automatisch alle **60 Sekunden**.")
+
     price = get_btc_price()
 
     if price:
@@ -96,7 +100,15 @@ def app():
 
         st.markdown("---")
         st.markdown("### 📊 Verlauf der Preise und Vorhersagen")
-        st.dataframe(df)
+        st.dataframe(df.tail(10))  # Nur letzte 10 Einträge anzeigen
+
+        # Diagramm anzeigen
+        st.markdown("### 📉 Verlauf als Diagramm")
+        chart_data = df[["Zeit", "Preis", "Vorhersage_1min", "Vorhersage_5min", "Vorhersage_10min"]]
+        chart_data["Zeit"] = pd.to_datetime(chart_data["Zeit"])
+        chart_data = chart_data.set_index("Zeit")
+        st.line_chart(chart_data)
+
     else:
         st.error("❌ Fehler beim Abrufen des Bitcoin-Preises.")
 

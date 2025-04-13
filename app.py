@@ -14,19 +14,22 @@ st.write("Diese App sagt den Bitcoin-Preis in 1, 5 und 10 Minuten voraus und spe
 csv_file = "bitcoin_prices.csv"
 
 # 🟡 Hole aktuellen Preis
+import requests
+
 def get_btc_price():
     try:
         url = "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
-        response = requests.get(url)
-        response.raise_for_status()  # Dies prüft, ob die Antwort ok ist (z.B. 200 OK)
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()  # Überprüft, ob die Antwort erfolgreich war
         data = response.json()
         return float(data['price'])
     except requests.exceptions.RequestException as e:
         st.error(f"Fehler beim Abrufen des Bitcoin-Preises von Binance: {e}")
         return None
-    except Exception as e:
-        st.error(f"Unbekannter Fehler: {e}")
-        return None
+
 
 
 # 🔵 Simuliere historische Preise (z. B. leicht schwankend um aktuellen Preis)

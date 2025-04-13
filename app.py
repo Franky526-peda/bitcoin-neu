@@ -18,11 +18,16 @@ def get_btc_price():
     try:
         url = "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
         response = requests.get(url)
+        response.raise_for_status()  # Dies prüft, ob die Antwort ok ist (z.B. 200 OK)
         data = response.json()
         return float(data['price'])
-    except Exception as e:
-        st.error(f"Fehler beim Abrufen des Bitcoin-Preises: {e}")
+    except requests.exceptions.RequestException as e:
+        st.error(f"Fehler beim Abrufen des Bitcoin-Preises von Binance: {e}")
         return None
+    except Exception as e:
+        st.error(f"Unbekannter Fehler: {e}")
+        return None
+
 
 # 🔵 Simuliere historische Preise (z. B. leicht schwankend um aktuellen Preis)
 def simulate_historic_prices(current_price, num_points=10):

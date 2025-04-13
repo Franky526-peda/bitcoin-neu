@@ -5,16 +5,18 @@ import numpy as np
 from datetime import datetime
 from sklearn.linear_model import LinearRegression
 
-# Abrufen des aktuellen Bitcoin-Preises von CoinGecko
-def get_btc_price():
-    url = "https://api.coingecko.com/api/v3/simple/price"
+# Abrufen von historischen Bitcoin-Preisen von CoinGecko
+def get_historical_btc_prices():
+    url = "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart"
     params = {
-        "ids": "bitcoin",
-        "vs_currencies": "usd"
+        "vs_currency": "usd",
+        "days": "10",  # 10 Tage historische Daten
+        "interval": "minute"  # Intervall in Minuten
     }
     response = requests.get(url, params=params)
     data = response.json()
-    return data["bitcoin"]["usd"]
+    prices = data["prices"]
+    return [(datetime.utcfromtimestamp(timestamp / 1000), price) for timestamp, price in prices]
 
 # Berechnung der technischen Indikatoren
 def calculate_indicators(df):
@@ -69,40 +71,32 @@ def make_prediction(df):
 # Hauptfunktion
 def app():
     st.title("Bitcoin Predictor – Live Vorhersagen mit erweiterten Features")
-    price = get_btc_price()
+    
+    # Abruf von historischen Bitcoin-Daten
+    historical_data = get_historical_btc_prices()
 
-    if price:
-        # Erstellen eines DataFrames mit historischen Preisen
-        # Beispiel: Erstelle eine Liste mit den letzten 10 Minuten des Bitcoin-Preises
-        historical_prices = [price] * 10  # Dies sollte durch echte historische Daten ersetzt werden
-        df = pd.DataFrame({
-            'Preis': historical_prices,
-            'Zeit': [datetime.now()] * 10
-        })
+    # Erstellen des DataFrames mit historischen Preisen
+    df = pd.DataFrame(historical_data, columns=["Zeit", "Preis"])
 
-        # Berechnung der technischen Indikatoren
-        df = calculate_indicators(df)
+    # Berechnung der technischen Indikatoren
+    df = calculate_indicators(df)
 
-        # Berechnung der Vorhersage unter Einbeziehung der technischen Indikatoren
-        pred_1 = make_prediction(df)
+    # Berechnung der Vorhersage unter Einbeziehung der technischen Indikatoren
+    pred_1 = make_prediction(df)
 
-        # Anzeige der aktuellen Preisvorhersage und der technischen Indikatoren
-        st.write(f"Aktueller Preis: {price}")
-        st.write(f"Vorhersage für 1 Minute: {pred_1}")
+    # Anzeige der aktuellen Preisvorhersage und der technischen Indikatoren
+    st.write(f"Aktueller Preis: {df['Preis'].iloc[-1]}")
+    st.write(f"Vorhersage für 1 Minute: {pred_1}")
 
-        st.write("Technische Indikatoren:")
-        st.write(f"SMA_10: {df['SMA_10'].iloc[-1]}")
-        st.write(f"EMA_10: {df['EMA_10'].iloc[-1]}")
-        st.write(f"RSI: {df['RSI'].iloc[-1]}")
-        st.write(f"MACD: {df['MACD'].iloc[-1]}")
-        st.write(f"MACD Signal: {df['MACD_signal'].iloc[-1]}")
+    st.write("Technische Indikatoren:")
+    st.write(f"SMA_10: {df['SMA_10'].iloc[-1]}")
+    st.write(f"EMA_10: {df['EMA_10'].iloc[-1]}")
+    st.write(f"RSI: {df['RSI'].iloc[-1]}")
+    st.write(f"MACD: {df['MACD'].iloc[-1]}")
+    st.write(f"MACD Signal: {df['MACD_signal'].iloc[-1]}")
 
-        # Anzeige eines Diagramms der Preisentwicklung
-        st.line_chart(df.set_index('Zeit'))
-
-    else:
-        st.error("Fehler beim Abrufen des Bitcoin-Preises")
+    # Anzeige eines Diagramms der Preisentwicklung
+    st.line_chart(df.set_index('Zeit'))
 
 if __name__ == "__main__":
     app()
-

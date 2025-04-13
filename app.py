@@ -5,14 +5,22 @@ import numpy as np
 from sklearn.linear_model import LinearRegression
 import time
 
-# Funktion, um Bitcoin-Preis von CoinGecko zu holen
-def get_btc_price():
-    url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
-    response = requests.get(url)
-    data = response.json()
-    return data['bitcoin']['usd']
+st.set_page_config(page_title="Bitcoin Predictor", layout="centered")
+st.title('💰 Bitcoin Predictor')
+st.write("Diese App sagt den Bitcoin-Preis in 1, 5 und 10 Minuten voraus.")
 
-# Funktion für lineare Regression zur Vorhersage
+# Funktion, um den Bitcoin-Preis zu holen
+def get_btc_price():
+    try:
+        url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
+        response = requests.get(url)
+        data = response.json()
+        return data['bitcoin']['usd']
+    except Exception as e:
+        st.error(f"Fehler beim Abrufen des Bitcoin-Preises: {e}")
+        return None
+
+# Funktion für Vorhersage
 def predict_price(data, minutes):
     model = LinearRegression()
     X = np.array(range(len(data))).reshape(-1, 1)
@@ -21,23 +29,27 @@ def predict_price(data, minutes):
     prediction = model.predict(np.array([[len(data) + minutes]]))
     return prediction[0]
 
-# Hauptprogramm
-st.title('Bitcoin Predictor')
-
-# Abrufen von Bitcoin-Preis für die letzten 10 Minuten
+# Preise sammeln
 prices = []
-for i in range(10):
-    price = get_btc_price()
-    prices.append(price)
-    time.sleep(60)
+with st.spinner("Hole aktuelle Bitcoin-Preise..."):
+    for i in range(10):
+        price = get_btc_price()
+        if price is not None:
+            prices.append(price)
+        else:
+            st.warning("Konnte Preis nicht abrufen. Versuche es später erneut.")
+            break
+        time.sleep(1)  # In Live-Betrieb auf 60 setzen
 
-# Vorhersage der nächsten Minuten
-prediction_1_min = predict_price(prices, 1)
-prediction_5_min = predict_price(prices, 5)
-prediction_10_min = predict_price(prices, 10)
+# Wenn genug Preise da sind, Vorhersage machen
+if len(prices) == 10:
+    pred_1 = predict_price(prices, 1)
+    pred_5 = predict_price(prices, 5)
+    pred_10 = predict_price(prices, 10)
 
-# Zeigen der aktuellen und prognostizierten Preise
-st.write(f"Aktueller Bitcoin-Preis: ${prices[-1]:.2f}")
-st.write(f"Vorhersage für den Bitcoin-Preis in 1 Minute: ${prediction_1_min:.2f}")
-st.write(f"Vorhersage für den Bitcoin-Preis in 5 Minuten: ${prediction_5_min:.2f}")
-st.write(f"Vorhersage für den Bitcoin-Preis in 10 Minuten: ${prediction_10_min:.2f}")
+    st.success(f"Aktueller Preis: ${prices[-1]:.2f}")
+    st.info(f"📈 Vorhersage in 1 Minute: ${pred_1:.2f}")
+    st.info(f"📈 Vorhersage in 5 Minuten: ${pred_5:.2f}")
+    st.info(f"📈 Vorhersage in 10 Minuten: ${pred_10:.2f}")
+else:
+    st.error("Nicht genug Preisdaten gesammelt.")

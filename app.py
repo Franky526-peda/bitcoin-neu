@@ -8,6 +8,9 @@ from sklearn.linear_model import LinearRegression
 import numpy as np
 from streamlit_autorefresh import st_autorefresh
 
+# 🟢 Diese Zeile muss hier stehen (direkt nach den Imports!)
+st.set_page_config(page_title="Bitcoin Predictor", layout="centered")
+
 # CSV-Datei zum Speichern der Daten
 csv_file = "bitcoin_data.csv"
 
@@ -64,7 +67,6 @@ def app():
     # Auto-Refresh alle 60 Sekunden
     st_autorefresh(interval=60 * 1000, key="refresh")
 
-    st.set_page_config(page_title="Bitcoin Predictor", layout="centered")
     st.title("💹 Bitcoin Predictor – Live-Vorhersagen")
     st.markdown("Diese App sagt den Bitcoin-Preis für 1, 5 und 10 Minuten in die Zukunft voraus – basierend auf gesammelten Daten. Die Seite aktualisiert sich automatisch alle **60 Sekunden**.")
 

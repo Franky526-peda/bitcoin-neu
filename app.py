@@ -1,108 +1,125 @@
+import streamlit as st
 import pandas as pd
 import numpy as np
 import requests
+import time
+from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
-import streamlit as st
-from datetime import datetime
-from ta.trend import MACD
-from ta.momentum import RSI
-from ta.volatility import AverageTrueRange
-from ta.trend import SMAIndicator, EMAIndicator
 
-# Abrufen von historischen Bitcoin-Preisen von CoinGecko
+# Funktion zum Abrufen der historischen Bitcoin-Preisdaten von CoinGecko
 def get_historical_btc_prices():
     url = "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart"
     params = {
-        "vs_currency": "usd",
-        "days": "30",  # 30 Tage historische Daten
-        "interval": "daily"  # Intervall in Tagen
+        'vs_currency': 'usd',
+        'days': '7',  # Abrufen der letzten 7 Tage (oder nach Bedarf anpassen)
+        'interval': 'minute'
     }
-    try:
-        response = requests.get(url, params=params)
-        data = response.json()
-        
-        # Prüfen, ob der "prices"-Schlüssel vorhanden ist
-        if "prices" not in data:
-            raise ValueError("Die API-Antwort enthält keinen 'prices'-Schlüssel.")
-        
-        prices = data["prices"]
-        # Daten umwandeln in pandas DataFrame
-        df = pd.DataFrame(prices, columns=["timestamp", "price"])
-        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+    
+    response = requests.get(url, params=params)
+    data = response.json()
+    
+    if 'prices' in data:
+        prices = data['prices']
+        df = pd.DataFrame(prices, columns=['timestamp', 'price'])
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
         return df
+    else:
+        st.error("Fehler beim Abrufen der Bitcoin-Daten. Bitte später erneut versuchen.")
+        return None
+
+# Funktion zur Berechnung des RSI (Relative Strength Index) ohne 'ta' Modul
+def calculate_rsi(data, window=14):
+    delta = data.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
     
-    except requests.exceptions.RequestException as e:
-        st.error(f"Fehler beim Abrufen der Bitcoin-Daten: {e}")
-        return pd.DataFrame()  # Leerer DataFrame
+    rs = gain / loss
+    rsi = 100 - (100 / (1 + rs))
     
-    except ValueError as e:
-        st.error(f"Fehler in den API-Daten: {e}")
-        return pd.DataFrame()
+    return rsi
 
-# Berechnen der technischen Indikatoren
-def calculate_indicators(df):
-    # Berechnung des Simple Moving Average (SMA)
-    sma = SMAIndicator(df['price'], window=10)
-    df['SMA_10'] = sma.sma_indicator()
+# Funktion zur Berechnung von SMA und EMA
+def calculate_technical_indicators(df):
+    # Berechnung des SMA (Simple Moving Average) mit einem Fenster von 10 Minuten
+    df['SMA_10'] = df['price'].rolling(window=10).mean()
+    
+    # Berechnung des EMA (Exponential Moving Average) mit einem Fenster von 10 Minuten
+    df['EMA_10'] = df['price'].ewm(span=10, adjust=False).mean()
 
-    # Berechnung des Exponential Moving Average (EMA)
-    ema = EMAIndicator(df['price'], window=10)
-    df['EMA_10'] = ema.ema_indicator()
+    # Berechnung des RSI
+    df['RSI'] = calculate_rsi(df['price'])
 
-    # Berechnung des Relative Strength Index (RSI)
-    rsi = RSI(df['price'], window=14)
-    df['RSI'] = rsi.rsi()
-
-    # Berechnung des MACD
-    macd = MACD(df['price'], window_slow=26, window_fast=12, window_sign=9)
-    df['MACD'] = macd.macd()
-    df['MACD_signal'] = macd.macd_signal()
-
+    # Berechnung von MACD und Signal-Linie
+    df['EMA_12'] = df['price'].ewm(span=12, adjust=False).mean()
+    df['EMA_26'] = df['price'].ewm(span=26, adjust=False).mean()
+    df['MACD'] = df['EMA_12'] - df['EMA_26']
+    df['MACD_signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
+    
     return df
 
-# Vorhersagefunktion (Dummy-Funktion für die Vorhersage)
+# Funktion zur Durchführung der Vorhersage mit LinearRegression
 def make_prediction(df):
-    if len(df) < 2:
-        return "Nicht genügend Daten für Vorhersage"
-    else:
-        # Dummy-Vorhersage basierend auf letzten Preis
-        latest_price = df['price'].iloc[-1]
-        return latest_price * 1.01  # Beispielvorhersage, z.B. 1% Preisanstieg
+    if len(df) < 10:
+        return None, None, None  # Nicht genügend Daten für Vorhersage
+
+    # Feature und Ziel-Daten vorbereiten
+    X = df[['price', 'SMA_10', 'EMA_10', 'RSI', 'MACD', 'MACD_signal']].dropna()
+    y = df['price'].shift(-1).dropna()  # Vorhersage für den nächsten Preis
+
+    model = LinearRegression()
+    model.fit(X, y)
+    
+    pred_1 = model.predict(X.iloc[[-1]])[0]  # Vorhersage für 1 Minute
+    return pred_1
+
+# Funktion zum Speichern der Vorhersagehistorie
+def save_to_csv(price, pred_1):
+    data = {'price': [price], 'pred_1': [pred_1]}
+    df = pd.DataFrame(data)
+    df.to_csv('bitcoin_predictions.csv', mode='a', header=False, index=False)
 
 # Streamlit App
 def app():
-    st.set_page_config(page_title="Bitcoin Predictor", layout="centered")
     st.title("Bitcoin Predictor – Live Vorhersagen mit erweiterten Features")
+
+    # Aktuellen Bitcoin-Preis abrufen
+    historical_data = get_historical_btc_prices()
     
-    # Abruf von historischen Bitcoin-Daten
-    df = get_historical_btc_prices()
-    
-    if df.empty:
-        return
-    
-    # Berechne technische Indikatoren
-    df = calculate_indicators(df)
-    
-    # Anzeige des aktuellen Bitcoin-Preises
-    current_price = df['price'].iloc[-1]
-    st.write(f"Aktueller Preis: ${current_price:.2f}")
-    
-    # Vorhersage
-    prediction = make_prediction(df)
-    st.write(f"Vorhersage für 1 Minute: ${prediction:.2f}")
-    
-    # Anzeige der technischen Indikatoren
-    st.write("Technische Indikatoren:")
-    st.write(f"SMA_10: {df['SMA_10'].iloc[-1]:.2f}")
-    st.write(f"EMA_10: {df['EMA_10'].iloc[-1]:.2f}")
-    st.write(f"RSI: {df['RSI'].iloc[-1]:.2f}")
-    st.write(f"MACD: {df['MACD'].iloc[-1]:.2f}")
-    st.write(f"MACD Signal: {df['MACD_signal'].iloc[-1]:.2f}")
-    
-    # Grafische Darstellung
-    st.subheader("Bitcoin Preis und technische Indikatoren")
-    st.line_chart(df[['price', 'SMA_10', 'EMA_10']])
-    
-# Anwendung starten
+    if historical_data is not None:
+        # Berechnung der technischen Indikatoren
+        historical_data = calculate_technical_indicators(historical_data)
+        
+        # Den letzten Preis abrufen
+        current_price = historical_data['price'].iloc[-1]
+        
+        # Vorhersage berechnen
+        pred_1 = make_prediction(historical_data)
+        
+        if pred_1 is None:
+            st.write("Nicht genügend Daten für Vorhersage.")
+        else:
+            # Ergebnisse anzeigen
+            st.write(f"Aktueller Preis: ${current_price:.2f}")
+            st.write(f"Vorhersage für 1 Minute: ${pred_1:.2f}")
+
+        # Historie der technischen Indikatoren und Vorhersagen anzeigen
+        st.write("Technische Indikatoren:")
+        st.write(f"SMA_10: {historical_data['SMA_10'].iloc[-1]:.2f}")
+        st.write(f"EMA_10: {historical_data['EMA_10'].iloc[-1]:.2f}")
+        st.write(f"RSI: {historical_data['RSI'].iloc[-1]:.2f}")
+        st.write(f"MACD: {historical_data['MACD'].iloc[-1]:.2f}")
+        st.write(f"MACD Signal: {historical_data['MACD_signal'].iloc[-1]:.2f}")
+        
+        # Ergebnisse speichern
+        save_to_csv(current_price, pred_1)
+        
+        # Grafische Darstellung der Bitcoin-Preisdaten
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.plot(historical_data['timestamp'], historical_data['price'], label='Bitcoin Preis')
+        ax.set_xlabel('Zeit')
+        ax.set_ylabel('Preis (USD)')
+        ax.set_title('Historische Bitcoin-Preise')
+        st.pyplot(fig)
+
 if __name__ == "__main__":
     app()

@@ -1,48 +1,45 @@
-import streamlit as st
-import pandas as pd
 import requests
-import numpy as np
-from sklearn.linear_model import LinearRegression
+import pandas as pd
 import time
-import os
+from sklearn.linear_model import LinearRegression
+import streamlit as st
+from datetime import datetime
 
-st.set_page_config(page_title="Bitcoin Predictor", layout="centered")
-st.title('💰 Bitcoin Predictor')
-st.write("Diese App sagt den Bitcoin-Preis in 1, 5 und 10 Minuten voraus und speichert die Ergebnisse.")
-
-# 📂 Datei zum Speichern
+# 📂 Speicherort der CSV-Datei, um die Daten zu speichern
 csv_file = "bitcoin_prices.csv"
 
-# 🟡 Hole aktuellen Preis
-import requests
-
+# 📡 Abruf des Bitcoin-Preises von CoinGecko
 def get_btc_price():
     try:
         url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
         response = requests.get(url)
-        response.raise_for_status()  # Überprüft, ob die Antwort erfolgreich war
+        response.raise_for_status()
         data = response.json()
         return data['bitcoin']['usd']
     except requests.exceptions.RequestException as e:
-        st.error(f"Fehler beim Abrufen des Bitcoin-Preises von CoinGecko: {e}")
+        st.error(f"Fehler beim Abrufen des Bitcoin-Preises: {e}")
         return None
 
-# 🔵 Simuliere historische Preise (z. B. leicht schwankend um aktuellen Preis)
-def simulate_historic_prices(current_price, num_points=10):
-    np.random.seed(42)
-    noise = np.random.normal(0, 10, size=num_points)
-    return [current_price + n for n in noise]
-
-# 🔮 Vorhersagefunktion
-def predict_price(data, minutes):
+# 📝 Vorhersage basierend auf den gespeicherten Preisen
+def make_prediction(prices):
+    if len(prices) < 2:  # Um ein Modell zu trainieren, benötigen wir mindestens 2 Datenpunkte
+        return 0, 0, 0  # Rückgabe von 0,0,0 als Platzhalter
+    
+    # X = Zeitstempel, Y = Preis
+    X = [[i] for i in range(len(prices))]
+    y = prices
+    
     model = LinearRegression()
-    X = np.array(range(len(data))).reshape(-1, 1)
-    y = np.array(data)
     model.fit(X, y)
-    prediction = model.predict(np.array([[len(data) + minutes]]))
-    return prediction[0]
+    
+    # Vorhersagen für 1, 5 und 10 Minuten (1, 5, 10 Perioden nach dem letzten Punkt)
+    pred_1 = model.predict([[len(prices) + 1]])[0]
+    pred_5 = model.predict([[len(prices) + 5]])[0]
+    pred_10 = model.predict([[len(prices) + 10]])[0]
+    
+    return pred_1, pred_5, pred_10
 
-# 🔁 Preis sammeln und speichern
+# 📝 Funktion zum Speichern der Preise und Vorhersagen in einer CSV-Datei
 def save_to_csv(price, pred_1, pred_5, pred_10):
     new_data = {
         'timestamp': time.time(),
@@ -54,34 +51,49 @@ def save_to_csv(price, pred_1, pred_5, pred_10):
     
     if os.path.exists(csv_file):
         df = pd.read_csv(csv_file)
-        df = df.append(new_data, ignore_index=True)
+        new_df = pd.DataFrame([new_data])
+        df = pd.concat([df, new_df], ignore_index=True)
     else:
         df = pd.DataFrame([new_data])
     
     df.to_csv(csv_file, index=False)
 
-# ⏳ Ablauf
-if st.button('Start Vorhersage'):
-    while True:
-        price = get_btc_price()
+# 🧑‍💻 Streamlit App
+def app():
+    st.title("Bitcoin Predictor")
 
-        if price is not None:
-            prices = simulate_historic_prices(price)
-            
-            pred_1 = predict_price(prices, 1)
-            pred_5 = predict_price(prices, 5)
-            pred_10 = predict_price(prices, 10)
+    # Abrufen des aktuellen Bitcoin-Preises
+    price = get_btc_price()
 
-            # Anzeigen
-            st.success(f"Aktueller Bitcoin-Preis: ${price:.2f}")
-            st.info(f"📈 Vorhersage in 1 Minute: ${pred_1:.2f}")
-            st.info(f"📈 Vorhersage in 5 Minuten: ${pred_5:.2f}")
-            st.info(f"📈 Vorhersage in 10 Minuten: ${pred_10:.2f}")
-
-            # Speichern der Daten
-            save_to_csv(price, pred_1, pred_5, pred_10)
-
-            time.sleep(60)  # 1 Anfrage pro Minute (Rate Limit einhalten)
+    if price:
+        # Lade historische Daten (Preise)
+        if os.path.exists(csv_file):
+            df = pd.read_csv(csv_file)
+            prices = df['price'].tolist()
         else:
-            st.error("Bitcoin-Preis konnte nicht abgerufen werden.")
-            break
+            prices = []
+
+        # Füge den aktuellen Preis hinzu und mache eine Vorhersage
+        prices.append(price)
+
+        # Berechne Vorhersagen
+        pred_1, pred_5, pred_10 = make_prediction(prices)
+
+        # Speichere den aktuellen Preis und die Vorhersagen in der CSV
+        save_to_csv(price, pred_1, pred_5, pred_10)
+
+        # Zeige die Ergebnisse in Streamlit an
+        st.write(f"**Aktueller Bitcoin-Preis**: ${price:.2f}")
+        st.write(f"**Vorhersage für 1 Minute**: ${pred_1:.2f}")
+        st.write(f"**Vorhersage für 5 Minuten**: ${pred_5:.2f}")
+        st.write(f"**Vorhersage für 10 Minuten**: ${pred_10:.2f}")
+
+        # Zeige die Historie der Preise und Vorhersagen
+        st.write("### Historie der Preise und Vorhersagen:")
+        st.write(df)
+
+    # Automatisches Update jede Minute
+    st.button("Aktualisieren", on_click=app)
+
+if __name__ == "__main__":
+    app()

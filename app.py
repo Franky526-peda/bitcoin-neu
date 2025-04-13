@@ -4,6 +4,8 @@ import time
 from sklearn.linear_model import LinearRegression
 import streamlit as st
 from datetime import datetime
+import os  # ❗️Dieser Import hat gefehlt
+
 
 # 📂 Speicherort der CSV-Datei, um die Daten zu speichern
 csv_file = "bitcoin_prices.csv"

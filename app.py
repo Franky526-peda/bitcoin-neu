@@ -14,6 +14,7 @@ def get_btc_price():
     try:
         url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
         response = requests.get(url)
+        st.write("API Antwort:", response.text)  # Debug-Ausgabe
         data = response.json()
         return data['bitcoin']['usd']
     except Exception as e:

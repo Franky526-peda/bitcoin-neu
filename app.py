@@ -13,10 +13,23 @@ def get_historical_btc_prices():
         "days": "10",  # 10 Tage historische Daten
         "interval": "minute"  # Intervall in Minuten
     }
-    response = requests.get(url, params=params)
-    data = response.json()
-    prices = data["prices"]
-    return [(datetime.utcfromtimestamp(timestamp / 1000), price) for timestamp, price in prices]
+    try:
+        response = requests.get(url, params=params)
+        data = response.json()
+        
+        # Prüfen, ob der "prices"-Schlüssel vorhanden ist
+        if "prices" not in data:
+            raise ValueError("Die API-Antwort enthält keinen 'prices'-Schlüssel.")
+        
+        prices = data["prices"]
+        return [(datetime.utcfromtimestamp(timestamp / 1000), price) for timestamp, price in prices]
+    
+    except requests.exceptions.RequestException as e:
+        st.error(f"Fehler beim Abrufen der Bitcoin-Daten: {e}")
+        return []
+    except ValueError as e:
+        st.error(f"Fehler in den API-Daten: {e}")
+        return []
 
 # Berechnung der technischen Indikatoren
 def calculate_indicators(df):
@@ -74,6 +87,10 @@ def app():
     
     # Abruf von historischen Bitcoin-Daten
     historical_data = get_historical_btc_prices()
+
+    if len(historical_data) == 0:
+        st.error("Es konnten keine Bitcoin-Daten abgerufen werden. Bitte später erneut versuchen.")
+        return
 
     # Erstellen des DataFrames mit historischen Preisen
     df = pd.DataFrame(historical_data, columns=["Zeit", "Preis"])

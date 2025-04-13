@@ -1,118 +1,104 @@
 import streamlit as st
 import pandas as pd
 import requests
-import time
-import os
+import numpy as np
 from datetime import datetime
 from sklearn.linear_model import LinearRegression
-import numpy as np
-from streamlit_autorefresh import st_autorefresh
 
-# 🟢 Diese Zeile muss hier stehen (direkt nach den Imports!)
-st.set_page_config(page_title="Bitcoin Predictor", layout="centered")
-
-# CSV-Datei zum Speichern der Daten
-csv_file = "bitcoin_data.csv"
-
-# Funktion zum Abrufen des aktuellen Bitcoin-Preises von CoinGecko
+# Abrufen des aktuellen Bitcoin-Preises von CoinGecko
 def get_btc_price():
     url = "https://api.coingecko.com/api/v3/simple/price"
     params = {
         "ids": "bitcoin",
         "vs_currencies": "usd"
     }
-    try:
-        response = requests.get(url, params=params)
-        data = response.json()
-        return float(data["bitcoin"]["usd"])
-    except Exception as e:
-        print("Fehler beim Abrufen des Preises:", e)
-        return None
+    response = requests.get(url, params=params)
+    data = response.json()
+    return data["bitcoin"]["usd"]
 
-# Funktion zur Preisvorhersage mit Linear Regression
-def make_prediction(prices):
-    X = np.arange(len(prices)).reshape(-1, 1)
-    y = np.array(prices).reshape(-1, 1)
+# Berechnung der technischen Indikatoren
+def calculate_indicators(df):
+    # Gleitender Durchschnitt (SMA)
+    df['SMA_10'] = df['Preis'].rolling(window=10).mean()  # 10-Minuten SMA
+    df['EMA_10'] = df['Preis'].ewm(span=10, adjust=False).mean()  # 10-Minuten EMA
 
+    # Berechnung des RSI
+    delta = df['Preis'].diff()
+    gain = delta.where(delta > 0, 0)
+    loss = -delta.where(delta < 0, 0)
+
+    avg_gain = gain.rolling(window=14).mean()
+    avg_loss = loss.rolling(window=14).mean()
+
+    rs = avg_gain / avg_loss
+    df['RSI'] = 100 - (100 / (1 + rs))
+
+    # Berechnung des MACD
+    df['EMA_12'] = df['Preis'].ewm(span=12, adjust=False).mean()
+    df['EMA_26'] = df['Preis'].ewm(span=26, adjust=False).mean()
+    df['MACD'] = df['EMA_12'] - df['EMA_26']
+    df['MACD_signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
+
+    return df
+
+# Vorhersage mit Lineare Regression unter Einbeziehung der Indikatoren
+def make_prediction(df):
+    # Wir nehmen die letzten 'n' Werte der Features (Preis und Indikatoren)
+    X = df[['Preis', 'SMA_10', 'EMA_10', 'RSI', 'MACD']].dropna()  # Daten ohne NaN-Werte
+    y = X['Preis']
+
+    # Das Lineare Modell trainieren
     model = LinearRegression()
-    model.fit(X, y)
+    model.fit(X.drop(columns='Preis'), y)
 
-    pred_1 = model.predict([[len(prices) + 1]])[0][0]
-    pred_5 = model.predict([[len(prices) + 5]])[0][0]
-    pred_10 = model.predict([[len(prices) + 10]])[0][0]
+    # Vorhersage für den nächsten Punkt
+    future_data = pd.DataFrame({
+        'Preis': [df['Preis'].iloc[-1]],  # Aktueller Preis
+        'SMA_10': [df['SMA_10'].iloc[-1]],
+        'EMA_10': [df['EMA_10'].iloc[-1]],
+        'RSI': [df['RSI'].iloc[-1]],
+        'MACD': [df['MACD'].iloc[-1]],
+    })
 
-    return pred_1, pred_5, pred_10
+    # Vorhersage für den nächsten Punkt
+    prediction = model.predict(future_data.drop(columns='Preis'))
 
-# Funktion zum Speichern der Daten in eine CSV-Datei
-def save_to_csv(price, pred_1, pred_5, pred_10):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    new_data = {
-        "Zeit": timestamp,
-        "Preis": price,
-        "Vorhersage_1min": pred_1,
-        "Vorhersage_5min": pred_5,
-        "Vorhersage_10min": pred_10
-    }
+    return prediction[0]
 
-    if os.path.exists(csv_file):
-        df = pd.read_csv(csv_file)
-    else:
-        df = pd.DataFrame()
-
-    df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
-    df.to_csv(csv_file, index=False)
-
-# Hauptfunktion der Streamlit App
+# Hauptfunktion
 def app():
-    # Auto-Refresh alle 60 Sekunden
-    st_autorefresh(interval=60 * 1000, key="refresh")
-
-    st.title("💹 Bitcoin Predictor – Live-Vorhersagen")
-    st.markdown("Diese App sagt den Bitcoin-Preis für 1, 5 und 10 Minuten in die Zukunft voraus – basierend auf gesammelten Daten. Die Seite aktualisiert sich automatisch alle **60 Sekunden**.")
-
+    st.title("Bitcoin Predictor – Live Vorhersagen mit erweiterten Features")
     price = get_btc_price()
 
     if price:
-        # Daten einlesen oder initialisieren
-        if os.path.exists(csv_file):
-            df = pd.read_csv(csv_file)
-            prices = df["Preis"].tolist()
-        else:
-            df = pd.DataFrame()
-            prices = []
+        # Erstellen eines DataFrames, der den aktuellen Preis enthält
+        df = pd.DataFrame({
+            'Preis': [price],
+            'Zeit': [datetime.now()]
+        })
 
-        prices.append(price)
+        # Berechnung der technischen Indikatoren
+        df = calculate_indicators(df)
 
-        # Vorhersage nur, wenn genug Daten vorhanden sind
-        if len(prices) >= 2:
-            pred_1, pred_5, pred_10 = make_prediction(prices)
-        else:
-            pred_1, pred_5, pred_10 = 0, 0, 0
+        # Berechnung der Vorhersage unter Einbeziehung der technischen Indikatoren
+        pred_1 = make_prediction(df)
 
-        # Speichern
-        save_to_csv(price, pred_1, pred_5, pred_10)
+        # Anzeige der aktuellen Preisvorhersage und der technischen Indikatoren
+        st.write(f"Aktueller Preis: {price}")
+        st.write(f"Vorhersage für 1 Minute: {pred_1}")
 
-        # Aktualisierte Daten anzeigen
-        df = pd.read_csv(csv_file)
+        st.write("Technische Indikatoren:")
+        st.write(f"SMA_10: {df['SMA_10'].iloc[0]}")
+        st.write(f"EMA_10: {df['EMA_10'].iloc[0]}")
+        st.write(f"RSI: {df['RSI'].iloc[0]}")
+        st.write(f"MACD: {df['MACD'].iloc[0]}")
+        st.write(f"MACD Signal: {df['MACD_signal'].iloc[0]}")
 
-        st.success(f"Aktueller Bitcoin-Preis: **${price:.2f}**")
-        st.write(f"📈 Vorhersage in 1 Minute: **${pred_1:.2f}**")
-        st.write(f"⏱️ Vorhersage in 5 Minuten: **${pred_5:.2f}**")
-        st.write(f"⏳ Vorhersage in 10 Minuten: **${pred_10:.2f}**")
-
-        st.markdown("---")
-        st.markdown("### 📊 Verlauf der Preise und Vorhersagen")
-        st.dataframe(df.tail(10))  # Nur letzte 10 Einträge anzeigen
-
-        # Diagramm anzeigen
-        st.markdown("### 📉 Verlauf als Diagramm")
-        chart_data = df[["Zeit", "Preis", "Vorhersage_1min", "Vorhersage_5min", "Vorhersage_10min"]]
-        chart_data["Zeit"] = pd.to_datetime(chart_data["Zeit"])
-        chart_data = chart_data.set_index("Zeit")
-        st.line_chart(chart_data)
+        # Anzeige eines Diagramms der Preisentwicklung
+        st.line_chart(df.set_index('Zeit'))
 
     else:
-        st.error("❌ Fehler beim Abrufen des Bitcoin-Preises.")
+        st.error("Fehler beim Abrufen des Bitcoin-Preises")
 
 if __name__ == "__main__":
     app()

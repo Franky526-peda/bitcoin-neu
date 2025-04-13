@@ -8,6 +8,9 @@ from datetime import datetime
 # Muss GANZ OBEN stehen
 st.set_page_config(page_title="Bitcoin Predictor", layout="centered")
 
+# Auto-refresh alle 60 Sekunden
+st_autorefresh(interval=60 * 1000)
+
 # CSV-Datei zur Speicherung
 CSV_FILE = "btc_data.csv"
 
@@ -100,4 +103,5 @@ def app():
 
 if __name__ == "__main__":
     app()
+
 

@@ -11,12 +11,12 @@ st.write("Diese App sagt den Bitcoin-Preis in 1, 5 und 10 Minuten voraus.")
 # 🟡 Hole aktuellen Preis
 def get_btc_price():
     try:
-        url = "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
+        url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
         response = requests.get(url)
         data = response.json()
-        return float(data['price'])
+        return data['bitcoin']['usd']
     except Exception as e:
-        st.error(f"Fehler beim Abrufen des Bitcoin-Preises von Binance: {e}")
+        st.error(f"Fehler beim Abrufen des Bitcoin-Preises: {e}")
         return None
 
 # 🔵 Simuliere historische Preise (z. B. leicht schwankend um aktuellen Preis)

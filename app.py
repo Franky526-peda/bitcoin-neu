@@ -18,11 +18,9 @@ def get_btc_price():
 
 # Berechnung der technischen Indikatoren
 def calculate_indicators(df):
-    # Gleitender Durchschnitt (SMA)
     df['SMA_10'] = df['Preis'].rolling(window=10).mean()  # 10-Minuten SMA
     df['EMA_10'] = df['Preis'].ewm(span=10, adjust=False).mean()  # 10-Minuten EMA
 
-    # Berechnung des RSI
     delta = df['Preis'].diff()
     gain = delta.where(delta > 0, 0)
     loss = -delta.where(delta < 0, 0)
@@ -33,7 +31,6 @@ def calculate_indicators(df):
     rs = avg_gain / avg_loss
     df['RSI'] = 100 - (100 / (1 + rs))
 
-    # Berechnung des MACD
     df['EMA_12'] = df['Preis'].ewm(span=12, adjust=False).mean()
     df['EMA_26'] = df['Preis'].ewm(span=26, adjust=False).mean()
     df['MACD'] = df['EMA_12'] - df['EMA_26']
@@ -41,27 +38,31 @@ def calculate_indicators(df):
 
     return df
 
-# Vorhersage mit Lineare Regression unter Einbeziehung der Indikatoren
+# Vorhersage mit Linearer Regression unter Einbeziehung der Indikatoren
 def make_prediction(df):
-    # Wir nehmen die letzten 'n' Werte der Features (Preis und Indikatoren)
-    X = df[['Preis', 'SMA_10', 'EMA_10', 'RSI', 'MACD']].dropna()  # Daten ohne NaN-Werte
-    y = X['Preis']
+    # Entfernen von Zeilen mit NaN-Werten
+    df = df.dropna()
+    
+    if len(df) < 2:  # Mindestens 2 Datenpunkte für die Vorhersage notwendig
+        return "Nicht genügend Daten für Vorhersage"
 
-    # Das Lineare Modell trainieren
+    X = df[['Preis', 'SMA_10', 'EMA_10', 'RSI', 'MACD']]
+    y = df['Preis']
+
+    # Lineares Modell trainieren
     model = LinearRegression()
-    model.fit(X.drop(columns='Preis'), y)
+    model.fit(X, y)
 
     # Vorhersage für den nächsten Punkt
     future_data = pd.DataFrame({
-        'Preis': [df['Preis'].iloc[-1]],  # Aktueller Preis
+        'Preis': [df['Preis'].iloc[-1]],  
         'SMA_10': [df['SMA_10'].iloc[-1]],
         'EMA_10': [df['EMA_10'].iloc[-1]],
         'RSI': [df['RSI'].iloc[-1]],
         'MACD': [df['MACD'].iloc[-1]],
     })
 
-    # Vorhersage für den nächsten Punkt
-    prediction = model.predict(future_data.drop(columns='Preis'))
+    prediction = model.predict(future_data)
 
     return prediction[0]
 
@@ -71,10 +72,12 @@ def app():
     price = get_btc_price()
 
     if price:
-        # Erstellen eines DataFrames, der den aktuellen Preis enthält
+        # Erstellen eines DataFrames mit historischen Preisen
+        # Beispiel: Erstelle eine Liste mit den letzten 10 Minuten des Bitcoin-Preises
+        historical_prices = [price] * 10  # Dies sollte durch echte historische Daten ersetzt werden
         df = pd.DataFrame({
-            'Preis': [price],
-            'Zeit': [datetime.now()]
+            'Preis': historical_prices,
+            'Zeit': [datetime.now()] * 10
         })
 
         # Berechnung der technischen Indikatoren
@@ -88,11 +91,11 @@ def app():
         st.write(f"Vorhersage für 1 Minute: {pred_1}")
 
         st.write("Technische Indikatoren:")
-        st.write(f"SMA_10: {df['SMA_10'].iloc[0]}")
-        st.write(f"EMA_10: {df['EMA_10'].iloc[0]}")
-        st.write(f"RSI: {df['RSI'].iloc[0]}")
-        st.write(f"MACD: {df['MACD'].iloc[0]}")
-        st.write(f"MACD Signal: {df['MACD_signal'].iloc[0]}")
+        st.write(f"SMA_10: {df['SMA_10'].iloc[-1]}")
+        st.write(f"EMA_10: {df['EMA_10'].iloc[-1]}")
+        st.write(f"RSI: {df['RSI'].iloc[-1]}")
+        st.write(f"MACD: {df['MACD'].iloc[-1]}")
+        st.write(f"MACD Signal: {df['MACD_signal'].iloc[-1]}")
 
         # Anzeige eines Diagramms der Preisentwicklung
         st.line_chart(df.set_index('Zeit'))
@@ -102,3 +105,4 @@ def app():
 
 if __name__ == "__main__":
     app()
+

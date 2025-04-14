@@ -11,32 +11,33 @@ st_autorefresh(interval=60 * 1000, key="refresh")  # 1x pro Minute aktualisieren
 
 st.title("📈 Bitcoin Predictor – Live Vorhersagen mit RSI")
 
-# === Aktuellen Preis von CoinGecko ===
+# === Aktuellen Preis von CryptoCompare ===
 def get_current_price():
     try:
-        url = "https://api.coingecko.com/api/v3/simple/price"
-        params = {"ids": "bitcoin", "vs_currencies": "usd"}
+        url = "https://min-api.cryptocompare.com/data/price"
+        params = {"fsym": "BTC", "tsyms": "USD"}
         response = requests.get(url, params=params)
         response.raise_for_status()
         data = response.json()
-        return float(data["bitcoin"]["usd"])
+        return data["USD"]
     except Exception as e:
         st.error(f"❌ Fehler beim Abrufen des aktuellen Preises: {e}")
         return None
 
-# === Historische Daten von CoinGecko ===
+# === Historische Daten von CryptoCompare ===
 def get_historical_data():
     try:
-        url = "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart"
-        params = {"vs_currency": "usd", "days": "1", "interval": "minutely"}
+        url = "https://min-api.cryptocompare.com/data/v2/histoday"
+        params = {"fsym": "BTC", "tsym": "USD", "limit": 30, "toTs": int(datetime.now().timestamp())}
         response = requests.get(url, params=params)
         response.raise_for_status()
         data = response.json()
 
-        prices = data["prices"]
-        df = pd.DataFrame(prices, columns=["timestamp", "price"])
-        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
-        return df.tail(30)  # letzte 30 Minuten
+        prices = data["Data"]["Data"]
+        df = pd.DataFrame(prices)
+        df["time"] = pd.to_datetime(df["time"], unit="s")
+        df["price"] = df["close"]
+        return df
     except Exception as e:
         st.error(f"❌ Fehler beim Abrufen der historischen Daten: {e}")
         return pd.DataFrame()

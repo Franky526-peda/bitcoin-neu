@@ -6,15 +6,15 @@ import pandas as pd
 import numpy as np
 from sklearn.linear_model import Ridge
 import requests
-from streamlit_autorefresh import st_autorefresh  # ⏱️ für Auto-Reload
+from streamlit_autorefresh import st_autorefresh
 
-# 🔁 Alle 60 Sekunden neu laden
-st_autorefresh(interval=60 * 1000, key="gold-autorefresh")
+# 🔁 Automatisches Neuladen alle 60 Sekunden
+st_autorefresh(interval=60 * 1000, key="auto-refresh")
 
-# 🔐 MetalPriceAPI-Key
-API_KEY = "DEIN_API_KEY_HIER"  # <-- Deinen echten Key hier eintragen
+# ✅ Dein MetalPriceAPI-Key
+API_KEY = "8a263511db4d7c22d3e6c09a58397f16"
 
-# 🟡 Live-Goldpreis abrufen
+# 🔄 Live-Goldpreis abrufen
 def get_live_gold_price():
     url = "https://api.metalpriceapi.com/v1/latest"
     params = {
@@ -24,8 +24,12 @@ def get_live_gold_price():
     }
     response = requests.get(url, params=params)
     data = response.json()
+    
+    # Zeige API-Antwort zur Fehlersuche
+    st.write("📡 API-Antwort:", data)
+    
     if "rates" in data and "XAU" in data["rates"]:
-        return 1 / data["rates"]["XAU"]  # USD/XAU
+        return 1 / data["rates"]["XAU"]  # Umrechnen zu USD/XAU
     else:
         return None
 
@@ -40,7 +44,7 @@ if price_now is None:
     st.error("❌ Konnte aktuellen Goldpreis nicht abrufen.")
     st.stop()
 
-# 📊 Simulierte Historie (ersetzen durch echte in Zukunft)
+# 📊 Simulierte Historie
 np.random.seed(42)
 noise = np.random.normal(0, 0.3, 120)
 trend = np.linspace(0, 1.5, 120)
@@ -52,7 +56,7 @@ df = pd.DataFrame({'timestamp': timestamps, 'price': prices})
 # Aktuellen Preis anhängen
 df = pd.concat([df, pd.DataFrame([{"timestamp": timestamp, "price": price_now}])], ignore_index=True)
 
-# 🧠 Modelltraining
+# 🧠 Einfaches Modell
 def train_model(data, horizon):
     df = data.copy()
     for i in range(1, 11):
@@ -65,7 +69,7 @@ def train_model(data, horizon):
     model.fit(X, y)
     return model, df
 
-# 🔮 Vorhersagen für 1, 5, 10 Minuten
+# 🔮 Vorhersagen
 predictions = {}
 for m in [1, 5, 10]:
     model, features = train_model(df, m)
@@ -73,7 +77,7 @@ for m in [1, 5, 10]:
     pred = model.predict(X_last)[0]
     predictions[m] = pred
 
-# 🔢 Anzeige
+# 🧾 Anzeige
 st.metric("📍 Aktueller Goldpreis", f"{price_now:.2f} USD")
 
 st.subheader("🔮 Vorhersagen")
@@ -83,5 +87,5 @@ for m, p in predictions.items():
 st.subheader("📉 Verlauf (letzte 100 Minuten)")
 st.line_chart(df.set_index("timestamp")["price"].tail(100))
 
-st.caption("🔄 Diese App aktualisiert sich automatisch alle 60 Sekunden.")
+st.caption("🔄 Diese App lädt sich automatisch alle 60 Sekunden neu.")
 

@@ -1,4 +1,6 @@
 import streamlit as st
+st.set_page_config(page_title="Live-Goldpreis", layout="centered")
+
 from datetime import datetime
 import pandas as pd
 import numpy as np
@@ -28,7 +30,6 @@ def get_live_gold_price():
         return None
 
 # 🚀 UI
-st.set_page_config(page_title="Live-Goldpreis", layout="centered")
 st.title("📈 Live-Goldpreis mit Vorhersage (auto-refresh)")
 
 # 📥 Live-Daten abrufen

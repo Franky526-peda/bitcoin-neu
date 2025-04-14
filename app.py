@@ -32,7 +32,7 @@ def get_historical_data():
         params = {
             "vs_currency": "usd",
             "days": "1",  # 1 Tag
-            "interval": "minute",  # Intervall für Minuten
+            "interval": "minute",  # Gültiger Intervallwert
         }
         response = requests.get(historical_data_url, params=params)
         data = response.json()
@@ -100,3 +100,4 @@ def app():
 
 if __name__ == "__main__":
     app()
+

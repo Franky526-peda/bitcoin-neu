@@ -15,8 +15,14 @@ def get_current_price():
     try:
         response = requests.get(url)
         data = response.json()
+
+        # Überprüfen der Struktur der Antwort
         if 'data' in data:
-            return float(data['data']['priceUsd'])
+            if 'priceUsd' in data['data']:
+                return float(data['data']['priceUsd'])
+            else:
+                st.error(f"Fehler beim Abrufen des aktuellen Preises: Kein 'priceUsd' in den Daten vorhanden.")
+                return None
         else:
             st.error(f"Fehler beim Abrufen des aktuellen Preises: {data}")
             return None
@@ -35,9 +41,9 @@ def get_historical_data():
     try:
         response = requests.get(url, params=params)
         data = response.json()
+
         # Überprüfen, ob 'data' vorhanden ist und den Preis korrekt extrahieren
         if 'data' in data:
-            # Überprüfen, dass jedes Element der Daten ein 'priceUsd' enthält
             historical_prices = []
             for data_point in data['data']:
                 if 'priceUsd' in data_point:

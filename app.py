@@ -2,105 +2,111 @@ import streamlit as st
 import requests
 import pandas as pd
 import numpy as np
-import time
 from datetime import datetime, timedelta
+import time
 from sklearn.linear_model import LinearRegression
 
-# Twelve Data API-Key
+# Dein Twelve Data API-Schlüssel
 API_KEY = "1c83ee150f8344eaa397d1d90a9da4f4"
+BASE_URL = "https://api.twelvedata.com"
 
-# Page config
-st.set_page_config(page_title="Bitcoin Predictor", layout="centered")
+# RSI-Berechnung
+def calculate_rsi(prices, period=14):
+    deltas = np.diff(prices)
+    seed = deltas[:period]
+    up = seed[seed >= 0].sum() / period
+    down = -seed[seed < 0].sum() / period
+    rs = up / down if down != 0 else 0
+    rsi = np.zeros_like(prices)
+    rsi[:period] = 100. - 100. / (1. + rs)
 
-# Funktion zur Preisabfrage
+    for i in range(period, len(prices)):
+        delta = deltas[i - 1]
+        if delta > 0:
+            up_val, down_val = delta, 0.
+        else:
+            up_val, down_val = 0., -delta
+
+        up = (up * (period - 1) + up_val) / period
+        down = (down * (period - 1) + down_val) / period
+        rs = up / down if down != 0 else 0
+        rsi[i] = 100. - 100. / (1. + rs)
+
+    return rsi
+
+# Aktuellen Preis abrufen
 def get_current_price():
-    url = f"https://api.twelvedata.com/price?symbol=BTC/USD&apikey={API_KEY}"
-    response = requests.get(url).json()
-    try:
-        return float(response["price"])
-    except KeyError:
-        st.error(f"Fehler beim Abrufen des aktuellen Preises: {response}")
-        return None
+    url = f"{BASE_URL}/price?symbol=BTC/USD&apikey={API_KEY}"
+    response = requests.get(url)
+    data = response.json()
+    return float(data["price"]) if "price" in data else None
 
-# Funktion für historische Minutenpreise
-def get_historical_prices(minutes=30):
+# Historische Minutenpreise abrufen
+def get_historical_prices():
     interval = "1min"
-    outputsize = str(minutes)
-    url = f"https://api.twelvedata.com/time_series?symbol=BTC/USD&interval={interval}&outputsize={outputsize}&apikey={API_KEY}"
-    response = requests.get(url).json()
-    try:
-        df = pd.DataFrame(response["values"])
+    outputsize = 60
+    url = f"{BASE_URL}/time_series?symbol=BTC/USD&interval={interval}&outputsize={outputsize}&apikey={API_KEY}"
+    response = requests.get(url)
+    data = response.json()
+
+    if "values" in data:
+        df = pd.DataFrame(data["values"])
         df["datetime"] = pd.to_datetime(df["datetime"])
         df["close"] = df["close"].astype(float)
         df = df.sort_values("datetime")
         return df
-    except Exception as e:
-        st.error(f"Fehler beim Abrufen der historischen Daten: {response}")
-        return None
+    return None
 
-# RSI-Berechnung
-def calculate_rsi(data, period=14):
-    delta = data.diff()
-    gain = np.where(delta > 0, delta, 0)
-    loss = np.where(delta < 0, -delta, 0)
-    avg_gain = pd.Series(gain).rolling(window=period).mean()
-    avg_loss = pd.Series(loss).rolling(window=period).mean()
-    rs = avg_gain / avg_loss
-    rsi = 100 - (100 / (1 + rs))
-    return rsi
-
-# Preisvorhersage mit linearer Regression
-def predict_prices(data, forecast_minutes=[1, 5, 10]):
-    df = data.copy()
-    df["minutes"] = np.arange(len(df))
-    X = df[["minutes"]]
-    y = df["close"]
+# Lineares Regressionsmodell
+def predict_prices(df, future_minutes):
+    df["timestamp"] = df["datetime"].astype(np.int64) // 10**9
+    X = df["timestamp"].values.reshape(-1, 1)
+    y = df["close"].values
 
     model = LinearRegression()
     model.fit(X, y)
 
-    predictions = {}
-    last_minute = df["minutes"].iloc[-1]
-    for minutes in forecast_minutes:
-        future_minute = [[last_minute + minutes]]
-        predicted_price = model.predict(future_minute)[0]
-        predictions[minutes] = predicted_price
+    last_timestamp = X[-1][0]
+    future_predictions = {}
+    for minutes in future_minutes:
+        future_time = last_timestamp + minutes * 60
+        future_pred = model.predict([[future_time]])[0]
+        future_predictions[minutes] = round(future_pred, 2)
 
-    return predictions
+    return future_predictions
 
-# Hauptfunktion
+# Haupt-App
 def app():
     st.title("📈 Bitcoin Predictor – Live Vorhersagen mit RSI")
 
-    price = get_current_price()
-    if price:
+    current_price = get_current_price()
+    if current_price:
         st.subheader("💰 Aktueller Preis:")
-        st.metric("Bitcoin Preis (USD)", f"${price:,.2f}")
+        st.markdown(f"**Bitcoin Preis (USD)**\n\n${current_price:,.2f}")
+    else:
+        st.error("❌ Konnte aktuellen Preis nicht abrufen.")
+        return
 
-    historical_df = get_historical_prices(30)
-    if historical_df is not None and not historical_df.empty:
+    df = get_historical_prices()
+    if df is not None and len(df) > 30:
+        closes = df["close"].values
+        rsi = calculate_rsi(closes, period=14)
         st.subheader("📊 RSI der letzten 30 Minuten")
-        rsi_series = calculate_rsi(historical_df["close"])
-        if not rsi_series.empty:
-            st.write(f"Letzter RSI-Wert: {rsi_series.iloc[-1]:.2f}")
-        else:
-            st.warning("Nicht genügend Daten für RSI-Berechnung.")
+        st.write(f"Letzter RSI-Wert: {rsi[-1]:.2f}")
 
         st.subheader("📉 Preisvorhersage mit linearer Regression")
-        predictions = predict_prices(historical_df)
-        for minutes, forecast in predictions.items():
-            st.write(f"Vorhergesagter Preis in {minutes} Minute(n): ${forecast:,.2f}")
+        predictions = predict_prices(df, [1, 5, 10])
+        for mins, pred in predictions.items():
+            st.write(f"Vorhergesagter Preis in {mins} Minute(n): ${pred:,.2f}")
     else:
         st.warning("Keine historischen Preisdaten verfügbar – keine Vorhersage möglich.")
 
-    st.write("🔄 Aktualisiert sich alle 60 Sekunden ...")
-
-# Automatische Aktualisierung
-def auto_refresh():
-    time.sleep(60)
-    st.experimental_rerun()
-
-# Starte App
 if __name__ == "__main__":
     app()
-    auto_refresh()
+
+    # Countdown zur nächsten Aktualisierung
+    countdown = st.empty()
+    for i in range(60, 0, -1):
+        countdown.info(f"🔄 Aktualisierung in {i} Sekunden ...")
+        time.sleep(1)
+    st.experimental_rerun()

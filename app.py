@@ -89,9 +89,9 @@ def app():
     st.write(f"Vorhergesagter Preis in 10 Minute(n): ${predicted_price_10_min:.2f}")
     st.write("🔄 Aktualisierung in 60 Sekunden...")
 
-    # Automatische Aktualisierung alle 60 Sekunden
+    # Warten und Seite neu laden (ohne st.experimental_rerun)
     time.sleep(60)
-    st.experimental_rerun()
+    st.empty()  # Das leere Container hilft beim dynamischen Neuladen der App
 
 # Aufruf der Haupt-App
 app()

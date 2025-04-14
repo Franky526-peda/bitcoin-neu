@@ -35,8 +35,16 @@ def get_historical_data():
     try:
         response = requests.get(url, params=params)
         data = response.json()
+        # Überprüfen, ob 'data' vorhanden ist und den Preis korrekt extrahieren
         if 'data' in data:
-            return data['data']
+            # Überprüfen, dass jedes Element der Daten ein 'priceUsd' enthält
+            historical_prices = []
+            for data_point in data['data']:
+                if 'priceUsd' in data_point:
+                    historical_prices.append(float(data_point['priceUsd']))
+                else:
+                    st.warning(f"Kein 'priceUsd' für Datenpunkt {data_point}")
+            return historical_prices
         else:
             st.error(f"Fehler beim Abrufen der historischen Daten: {data}")
             return None
@@ -74,7 +82,7 @@ def app():
     historical_data = get_historical_data()
     if historical_data:
         # Preisdaten extrahieren
-        historical_prices = [float(data_point['priceUsd']) for data_point in historical_data]
+        historical_prices = historical_data
 
         # RSI berechnen
         rsi = calculate_rsi(historical_prices)

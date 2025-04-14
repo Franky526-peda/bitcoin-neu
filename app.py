@@ -3,6 +3,7 @@ import requests
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
+from sklearn.linear_model import LinearRegression
 
 # Seite konfigurieren
 st.set_page_config(page_title="Bitcoin Predictor", layout="centered")
@@ -38,6 +39,20 @@ def generate_simulated_data(current_price, minutes=30):
         prices.append(max(0, prices[-1] + change))
     return pd.Series(prices[::-1])  # in umgekehrter Reihenfolge (älteste zuerst)
 
+# Lineare Regression für die Preisvorhersage
+def make_price_prediction(prices):
+    # X: Zeit (Minuten), y: Preis
+    X = np.array(range(len(prices))).reshape(-1, 1)
+    y = prices.values
+    model = LinearRegression()
+    model.fit(X, y)
+    
+    # Vorhersage für die nächste Minute
+    next_minute = np.array([[len(prices)]])
+    predicted_price = model.predict(next_minute)[0]
+    
+    return predicted_price
+
 # Hauptfunktion der App
 def main():
     st.title("📈 Bitcoin Predictor – Live Vorhersagen mit RSI")
@@ -62,9 +77,10 @@ def main():
         latest_rsi = rsi_series.dropna().iloc[-1]
         st.metric("Letzter RSI-Wert", f"{latest_rsi:.2f}")
 
-    # Vorhersage-Platzhalter (kann später durch ML-Modell ersetzt werden)
-    st.markdown("📉 **Vorhersage**")
-    st.info("Nicht genügend Daten für Vorhersage – Modell kann implementiert werden.")
+    # Vorhersage der nächsten Preisbewegung
+    st.markdown("📉 **Preisvorhersage für die nächste Minute**")
+    predicted_price = make_price_prediction(price_series)
+    st.subheader(f"Vorhergesagter Preis für die nächste Minute: ${predicted_price:,.2f}")
 
 if __name__ == "__main__":
     main()

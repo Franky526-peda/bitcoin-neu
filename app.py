@@ -88,7 +88,7 @@ def app():
     st.write(f"Vorhergesagter Preis in 1 Minute(n): ${predicted_price_1_min:.2f}")
     st.write(f"Vorhergesagter Preis in 5 Minute(n): ${predicted_price_5_min:.2f}")
     st.write(f"Vorhergesagter Preis in 10 Minute(n): ${predicted_price_10_min:.2f}")
-    st.write("🔄 Aktualisierung in 1 Sekunde...")
+    st.write("🔄 Aktualisierung in 60 Sekunden...")
 
 # Automatische Aktualisierung alle 60 Sekunden
 st_autorefresh(interval=60 * 1000, key="refresh")

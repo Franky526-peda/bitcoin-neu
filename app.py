@@ -89,7 +89,7 @@ def app():
     
     # Button für manuelle Aktualisierung
     if st.button("Daten aktualisieren"):
-        st.experimental_rerun()
+        st.experimental_rerun()  # Manuelles Neuladen der App nach dem Drücken des Buttons
 
 # Aufruf der Haupt-App
 app()

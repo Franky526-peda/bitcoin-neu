@@ -3,6 +3,7 @@ import requests
 import pandas as pd
 import numpy as np
 from datetime import datetime
+import time
 
 # URL für den aktuellen Preis und historische Daten von CoinGecko
 current_price_url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
@@ -13,8 +14,13 @@ def get_current_price():
     try:
         response = requests.get(current_price_url)
         data = response.json()
-        current_price = data["bitcoin"]["usd"]  # Preis in USD extrahieren
-        return current_price
+        # Sicherstellen, dass die Datenstruktur korrekt ist
+        if "bitcoin" in data and "usd" in data["bitcoin"]:
+            current_price = data["bitcoin"]["usd"]
+            return current_price
+        else:
+            st.error("Fehler beim Abrufen des aktuellen Preises: 'bitcoin' oder 'usd' nicht gefunden.")
+            return None
     except Exception as e:
         st.error(f"Fehler beim Abrufen des aktuellen Preises: {e}")
         return None
@@ -25,7 +31,7 @@ def get_historical_data():
         params = {
             "vs_currency": "usd",
             "days": "1",  # 1 Tag
-            "interval": "minute",  # Versuchen mit "minute"
+            "interval": "minute",  # Intervall für Minuten
         }
         response = requests.get(historical_data_url, params=params)
         data = response.json()
@@ -87,7 +93,8 @@ def app():
         st.write(f"Vorhergesagter Preis in 5 Minuten: ${prediction_5min:,.2f}")
         st.write(f"Vorhergesagter Preis in 10 Minuten: ${prediction_10min:,.2f}")
 
-    # Auto-Refresh alle 60 Sekunden
+    # Verzögerung, um das API-Limit nicht zu überschreiten
+    time.sleep(30)
     st.experimental_rerun()
 
 if __name__ == "__main__":

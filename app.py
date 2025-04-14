@@ -6,7 +6,7 @@ from sklearn.linear_model import Ridge
 from datetime import datetime, timedelta
 
 # Automatisches Neuladen alle 60 Sekunden
-st.experimental_set_query_params(update=time.time())
+st.query_params.update({"update": str(time.time())})
 st.title("🔮 Live-Goldpreis-Vorhersage")
 
 # Dummy-Goldpreis-Stream (ersetze später mit echter API)

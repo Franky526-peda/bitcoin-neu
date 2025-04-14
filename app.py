@@ -1,62 +1,61 @@
+import time
 import streamlit as st
 import requests
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
 from sklearn.linear_model import LinearRegression
 
-# Seite konfigurieren
-st.set_page_config(page_title="Bitcoin Predictor", layout="centered")
+# Funktion zur Abfrage des aktuellen Bitcoin-Preises
+def get_current_btc_price():
+    url = "https://api.coindesk.com/v1/bpi/currentprice/USD.json"
+    try:
+        response = requests.get(url)
+        data = response.json()
+        current_price = data['bpi']['USD']['rate_float']
+        return current_price
+    except requests.exceptions.RequestException as e:
+        st.error(f"Fehler beim Abrufen des aktuellen Preises: {e}")
+        return None
 
-# RSI-Berechnung ohne externe Bibliothek
-def calculate_rsi(prices, period=14):
+# Funktion zur Abfrage historischer Bitcoin-Daten
+def get_historical_btc_data():
+    url = "https://api.coindesk.com/v1/bpi/historical/close.json"
+    try:
+        response = requests.get(url, params={'currency': 'USD', 'for_date': '2025-04-13'})
+        data = response.json()
+        return pd.DataFrame(data['bpi'], columns=['Date', 'Price'])
+    except requests.exceptions.RequestException as e:
+        st.error(f"Fehler beim Abrufen der historischen Daten: {e}")
+        return None
+
+# Funktion zur Berechnung des RSI (Relative Strength Index)
+def calculate_rsi(prices, window=14):
     delta = prices.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
     rs = gain / loss
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
-# Aktuellen BTC-Preis von CoinGecko abrufen
-def get_current_btc_price():
-    url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-        price = data['bitcoin']['usd']
-        return price
-    except Exception as e:
-        st.error(f"❌ Fehler beim Abrufen des aktuellen Preises: {e}")
-        return None
-
-# Simulierte historische Preisdaten erzeugen (z. B. letzte 30 Minuten mit kleinen Schwankungen)
-def generate_simulated_data(current_price, minutes=30):
-    np.random.seed(42)
-    prices = [current_price]
-    for _ in range(minutes - 1):
-        change = np.random.normal(0, 15)  # kleine Schwankung
-        prices.append(max(0, prices[-1] + change))
-    return pd.Series(prices[::-1])  # in umgekehrter Reihenfolge (älteste zuerst)
-
-# Lineare Regression für die Preisvorhersage
-def make_price_prediction(prices):
-    # X: Zeit (Minuten), y: Preis
-    X = np.array(range(len(prices))).reshape(-1, 1)
-    y = prices.values
+# Funktion zur Preisvorhersage
+def make_prediction(df, minutes):
+    # Feature: Zeit (minütlich), Preis
+    df['Minute'] = np.arange(len(df))
+    X = df[['Minute']]
+    y = df['Price']
+    
     model = LinearRegression()
     model.fit(X, y)
     
-    # Vorhersage für die nächste Minute
-    next_minute = np.array([[len(prices)]])
-    predicted_price = model.predict(next_minute)[0]
-    
-    return predicted_price
+    future_minute = np.array([[len(df) + minutes]])
+    predicted_price = model.predict(future_minute)
+    return predicted_price[0]
 
-# Hauptfunktion der App
+# Streamlit-App
 def main():
     st.title("📈 Bitcoin Predictor – Live Vorhersagen mit RSI")
 
+    # Abrufen des aktuellen Bitcoin-Preises
     current_price = get_current_btc_price()
     if current_price is None:
         st.stop()
@@ -64,24 +63,40 @@ def main():
     st.markdown("💰 **Aktueller Preis**")
     st.subheader(f"${current_price:,.2f}")
 
-    # Historische Daten simulieren
-    price_series = generate_simulated_data(current_price)
-    rsi_series = calculate_rsi(price_series)
+    # Abrufen der historischen Preisdaten
+    historical_data = get_historical_btc_data()
+    if historical_data is None:
+        st.stop()
 
-    # RSI anzeigen
-    st.markdown("📊 **RSI der letzten 30 Minuten (simuliert)**")
-    if rsi_series.isnull().all():
+    # Berechnung des RSI
+    rsi = calculate_rsi(historical_data['Price'])
+    st.markdown("📊 **RSI der letzten 30 Minuten**")
+    if rsi.isnull().all():
         st.info("RSI wird berechnet… (mind. 14 Datenpunkte erforderlich)")
     else:
-        st.line_chart(rsi_series.dropna())
-        latest_rsi = rsi_series.dropna().iloc[-1]
+        st.line_chart(rsi.dropna())
+        latest_rsi = rsi.dropna().iloc[-1]
         st.metric("Letzter RSI-Wert", f"{latest_rsi:.2f}")
 
     # Vorhersage der nächsten Preisbewegung
-    st.markdown("📉 **Preisvorhersage für die nächste Minute**")
-    predicted_price = make_price_prediction(price_series)
-    st.subheader(f"Vorhergesagter Preis für die nächste Minute: ${predicted_price:,.2f}")
+    st.markdown("📉 **Preisvorhersage**")
+    
+    # Vorhersagen für 1, 5, und 10 Minuten
+    pred_1 = make_prediction(historical_data, 1)
+    pred_5 = make_prediction(historical_data, 5)
+    pred_10 = make_prediction(historical_data, 10)
 
+    st.subheader(f"Vorhergesagter Preis in 1 Minute: ${pred_1:,.2f}")
+    st.subheader(f"Vorhergesagter Preis in 5 Minuten: ${pred_5:,.2f}")
+    st.subheader(f"Vorhergesagter Preis in 10 Minuten: ${pred_10:,.2f}")
+
+# Automatisches Refresh alle 60 Sekunden
+def auto_refresh():
+    st.experimental_rerun()
+
+# Streamlit-Seite aktualisieren alle 60 Sekunden
 if __name__ == "__main__":
-    main()
-
+    while True:
+        main()
+        time.sleep(60)  # 60 Sekunden warten, bevor die Daten erneut abgerufen werden
+        auto_refresh()  # Seite automatisch neu laden

@@ -16,6 +16,9 @@ def get_current_price():
         response = requests.get(url)
         data = response.json()
 
+        # Protokolliere die API-Antwort, um das genaue Format zu überprüfen
+        st.write("API-Antwort (Aktueller Preis):", data)
+
         # Überprüfen der Struktur der Antwort
         if 'data' in data:
             if 'priceUsd' in data['data']:
@@ -24,7 +27,7 @@ def get_current_price():
                 st.error(f"Fehler beim Abrufen des aktuellen Preises: Kein 'priceUsd' in den Daten vorhanden.")
                 return None
         else:
-            st.error(f"Fehler beim Abrufen des aktuellen Preises: {data}")
+            st.error(f"Fehler beim Abrufen des aktuellen Preises: Keine 'data'-Sektion in der Antwort.")
             return None
     except Exception as e:
         st.error(f"Fehler beim Abrufen des aktuellen Preises: {e}")
@@ -41,6 +44,9 @@ def get_historical_data():
     try:
         response = requests.get(url, params=params)
         data = response.json()
+
+        # Protokolliere die API-Antwort, um das genaue Format zu überprüfen
+        st.write("API-Antwort (Historische Daten):", data)
 
         # Überprüfen, ob 'data' vorhanden ist und den Preis korrekt extrahieren
         if 'data' in data:

@@ -5,100 +5,86 @@ import requests
 from datetime import datetime
 from sklearn.linear_model import LinearRegression
 
-# Seite konfigurieren (muss ganz am Anfang stehen)
+# Seite konfigurieren
 st.set_page_config(page_title="Bitcoin Predictor", layout="centered")
 
-# Titel
-st.title("📈 Bitcoin Predictor – Live Vorhersagen mit RSI")
-
-# Funktion zur RSI-Berechnung
-def calculate_rsi(data, window=14):
-    delta = data.diff()
-    gain = delta.where(delta > 0, 0.0)
-    loss = -delta.where(delta < 0, 0.0)
-    avg_gain = gain.rolling(window=window).mean()
-    avg_loss = loss.rolling(window=window).mean()
-
-    rs = avg_gain / avg_loss
-    rsi = 100 - (100 / (1 + rs))
-    return rsi
-
-# Funktion zum Abrufen historischer Bitcoin-Preise von CoinGecko
-def get_btc_price_history():
-    url = "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart"
+# Funktion: Preis von CoinGecko abrufen
+def get_btc_price_public():
+    url = "https://api.coingecko.com/api/v3/simple/price"
     params = {
-        "vs_currency": "usd",
-        "days": "1",
-        "interval": "minutely"
+        "ids": "bitcoin",
+        "vs_currencies": "usd"
     }
     try:
-        response = requests.get(url, params=params)
+        response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
         data = response.json()
-
-        prices = data.get("prices", [])
-        if not prices:
-            st.error("⚠️ Fehler: Keine Preisdaten in API-Antwort enthalten.")
-            return None
-
-        df = pd.DataFrame(prices, columns=["timestamp", "price"])
-        df["timestamp"] = pd.to_datetime(df["timestamp"], unit='ms')
-        df.set_index("timestamp", inplace=True)
-        return df
-    except requests.exceptions.RequestException as e:
+        return data["bitcoin"]["usd"]
+    except Exception as e:
         st.error(f"❌ Fehler beim Abrufen der Daten: {e}")
         return None
 
-# Vorhersagefunktion mit einfachem linearen Modell
-def predict_future_prices(df):
-    df = df.copy()
-    df["minute"] = np.arange(len(df))
-    model = LinearRegression()
-    model.fit(df[["minute"]], df["price"])
+# Funktion: RSI berechnen (ohne ta-lib oder ta)
+def calculate_rsi(prices, period=14):
+    if len(prices) < period:
+        return None
 
-    pred_1 = model.predict([[len(df)]])[0]
-    pred_5 = model.predict([[len(df) + 4]])[0]
-    pred_10 = model.predict([[len(df) + 9]])[0]
-    return pred_1, pred_5, pred_10
+    delta = prices.diff()
+    gain = delta.where(delta > 0, 0)
+    loss = -delta.where(delta < 0, 0)
+
+    avg_gain = gain.rolling(window=period).mean()
+    avg_loss = loss.rolling(window=period).mean()
+
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+
+    return rsi.iloc[-1]
+
+# Funktion: Dummy-Vorhersage
+def predict_price(prices):
+    if len(prices) < 5:
+        return None  # Nicht genug Daten
+    X = np.arange(len(prices)).reshape(-1, 1)
+    y = prices.values.reshape(-1, 1)
+    model = LinearRegression().fit(X, y)
+    future = np.array([[len(prices)]])  # nächster Zeitschritt
+    prediction = model.predict(future)
+    return prediction[0][0]
 
 # Hauptfunktion
 def app():
-    df = get_btc_price_history()
+    st.markdown("## 📈 Bitcoin Predictor – Live Vorhersagen mit RSI")
 
-    if df is None or df.empty:
+    # SessionState verwenden für Preis-Log
+    if "prices" not in st.session_state:
+        st.session_state.prices = []
+
+    current_price = get_btc_price_public()
+    if current_price is not None:
+        st.session_state.prices.append(current_price)
+
+        st.markdown(f"### 💰 Aktueller Preis\n\n**${current_price:,.2f}**")
+
+        # Vorhersage
+        prices_series = pd.Series(st.session_state.prices)
+        prediction = predict_price(prices_series)
+
+        if prediction is not None:
+            st.markdown(f"### 🔮 Vorhersage (nächste Minute)\n\n**${prediction:,.2f}**")
+        else:
+            st.markdown("📉 *Nicht genügend Daten für Vorhersage*")
+
+        # RSI-Berechnung
+        rsi = calculate_rsi(prices_series)
+        if rsi is not None:
+            st.markdown(f"### 📊 RSI (14)\n\n**{rsi:.2f}**")
+        else:
+            st.markdown("📊 *RSI wird berechnet… (mind. 14 Datenpunkte erforderlich)*")
+
+    else:
         st.error("❌ Fehler beim Abrufen der Bitcoin-Daten. Bitte später erneut versuchen.")
-        return
 
-    # Aktuellen Preis anzeigen
-    current_price = df["price"].iloc[-1]
-    st.subheader("💰 Aktueller Preis")
-    st.metric(label="", value=f"${current_price:,.2f}")
-
-    # RSI berechnen
-    rsi_series = calculate_rsi(df["price"])
-    latest_rsi = rsi_series.iloc[-1]
-
-    if rsi_series.isna().sum() > 0:
-        st.warning("📊 RSI wird berechnet… (mind. 14 Datenpunkte erforderlich)")
-    else:
-        st.subheader("📊 RSI")
-        st.metric(label="Relative Strength Index (14)", value=f"{latest_rsi:.2f}")
-
-    # Vorhersage anzeigen
-    if len(df) >= 15:
-        pred_1, pred_5, pred_10 = predict_future_prices(df)
-        st.subheader("📉 Vorhersagen")
-        st.write(f"⏱️ In 1 Minute: **${pred_1:,.2f}**")
-        st.write(f"⏳ In 5 Minuten: **${pred_5:,.2f}**")
-        st.write(f"🕙 In 10 Minuten: **${pred_10:,.2f}**")
-    else:
-        st.warning("📉 Nicht genügend Daten für Vorhersage")
-
-    # Verlauf als Diagramm
-    st.subheader("📈 Preisverlauf")
-    st.line_chart(df["price"])
-
-# App starten
+# Streamlit ausführen
 if __name__ == "__main__":
     app()
-

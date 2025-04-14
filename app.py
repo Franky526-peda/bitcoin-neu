@@ -26,13 +26,13 @@ def get_current_price():
         st.error(f"Fehler beim Abrufen des aktuellen Preises: {e}")
         return None
 
-# Funktion zum Abrufen historischer Daten (minütlich)
+# Funktion zum Abrufen historischer Daten (stundenweise oder täglich)
 def get_historical_data():
     try:
         params = {
             "vs_currency": "usd",
             "days": "1",  # 1 Tag
-            "interval": "minute",  # Gültiger Intervallwert
+            "interval": "hourly",  # Intervall auf stündlich setzen
         }
         response = requests.get(historical_data_url, params=params)
         data = response.json()
@@ -95,9 +95,8 @@ def app():
         st.write(f"Vorhergesagter Preis in 10 Minuten: ${prediction_10min:,.2f}")
 
     # Verzögerung, um das API-Limit nicht zu überschreiten
-    time.sleep(60)  # 60 Sekunden Verzögerung
+    time.sleep(120)  # 120 Sekunden Verzögerung
     st.experimental_rerun()
 
 if __name__ == "__main__":
     app()
-

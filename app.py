@@ -25,7 +25,7 @@ def get_historical_data():
         params = {
             "vs_currency": "usd",
             "days": "1",  # 1 Tag
-            "interval": "minute1",  # Korrektes Format für CoinGecko API für minütliche Daten
+            "interval": "minute",  # Versuchen mit "minute"
         }
         response = requests.get(historical_data_url, params=params)
         data = response.json()
@@ -92,3 +92,4 @@ def app():
 
 if __name__ == "__main__":
     app()
+

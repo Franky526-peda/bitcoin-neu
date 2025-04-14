@@ -5,25 +5,30 @@ import pandas as pd
 import numpy as np
 from sklearn.linear_model import LinearRegression
 
-# Funktion zur Abfrage des aktuellen Bitcoin-Preises
+# Funktion zur Abfrage des aktuellen Bitcoin-Preises von CoinGecko
 def get_current_btc_price():
-    url = "https://api.coindesk.com/v1/bpi/currentprice/USD.json"
+    url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
     try:
         response = requests.get(url)
         data = response.json()
-        current_price = data['bpi']['USD']['rate_float']
+        current_price = data['bitcoin']['usd']
         return current_price
     except requests.exceptions.RequestException as e:
         st.error(f"Fehler beim Abrufen des aktuellen Preises: {e}")
         return None
 
-# Funktion zur Abfrage historischer Bitcoin-Daten
+# Funktion zur Abfrage historischer Bitcoin-Daten von CoinGecko (letzte 30 Tage)
 def get_historical_btc_data():
-    url = "https://api.coindesk.com/v1/bpi/historical/close.json"
+    url = "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart"
     try:
-        response = requests.get(url, params={'currency': 'USD', 'for_date': '2025-04-13'})
+        response = requests.get(url, params={'vs_currency': 'usd', 'days': '30'})
         data = response.json()
-        return pd.DataFrame(data['bpi'], columns=['Date', 'Price'])
+        prices = data['prices']
+        # Umwandeln in DataFrame
+        df = pd.DataFrame(prices, columns=['Timestamp', 'Price'])
+        df['Date'] = pd.to_datetime(df['Timestamp'], unit='ms')
+        df.set_index('Date', inplace=True)
+        return df
     except requests.exceptions.RequestException as e:
         st.error(f"Fehler beim Abrufen der historischen Daten: {e}")
         return None

@@ -14,7 +14,8 @@ def get_current_price():
     try:
         response = requests.get(current_price_url)
         data = response.json()
-        # Sicherstellen, dass die Datenstruktur korrekt ist
+        
+        # Sicherstellen, dass die 'bitcoin' und 'usd' Felder existieren
         if "bitcoin" in data and "usd" in data["bitcoin"]:
             current_price = data["bitcoin"]["usd"]
             return current_price
@@ -94,9 +95,10 @@ def app():
         st.write(f"Vorhergesagter Preis in 10 Minuten: ${prediction_10min:,.2f}")
 
     # Verzögerung, um das API-Limit nicht zu überschreiten
-    time.sleep(30)
+    time.sleep(60)  # 60 Sekunden Verzögerung
     st.experimental_rerun()
 
 if __name__ == "__main__":
     app()
+
 

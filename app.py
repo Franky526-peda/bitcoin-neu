@@ -3,6 +3,7 @@ import requests
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LinearRegression
+import time
 
 # API Key für Twelve Data
 API_KEY = "1c83ee150f8344eaa397d1d90a9da4f4"
@@ -88,7 +89,9 @@ def app():
     st.write(f"Vorhergesagter Preis in 10 Minute(n): ${predicted_price_10_min:.2f}")
     st.write("🔄 Aktualisierung in 60 Sekunden...")
 
-# Stellt die automatische Aktualisierung alle 60 Sekunden sicher
-st.autorefresh(interval=60 * 1000)  # Aktualisiert die Seite alle 60 Sekunden
+    # Automatische Aktualisierung alle 60 Sekunden
+    time.sleep(60)
+    st.experimental_rerun()
 
-app()  # Führt die App aus
+# Aufruf der Haupt-App
+app()

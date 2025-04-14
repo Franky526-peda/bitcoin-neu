@@ -15,12 +15,12 @@ def get_current_price():
         response = requests.get(current_price_url)
         data = response.json()
         
-        # Sicherstellen, dass die 'bitcoin' und 'usd' Felder existieren
+        # Prüfen, ob 'bitcoin' und 'usd' vorhanden sind
         if "bitcoin" in data and "usd" in data["bitcoin"]:
             current_price = data["bitcoin"]["usd"]
             return current_price
         else:
-            st.error("Fehler beim Abrufen des aktuellen Preises: 'bitcoin' oder 'usd' nicht gefunden.")
+            st.error(f"Fehler beim Abrufen des aktuellen Preises: {data}")
             return None
     except Exception as e:
         st.error(f"Fehler beim Abrufen des aktuellen Preises: {e}")
@@ -37,8 +37,8 @@ def get_historical_data():
         response = requests.get(historical_data_url, params=params)
         data = response.json()
 
+        # Prüfen, ob 'prices' in den Daten vorhanden sind
         if "prices" in data:
-            # Extrahieren der Preis-Datenpunkte (Zeitstempel und Preis)
             historical_prices = data["prices"]
             return pd.DataFrame(historical_prices, columns=["timestamp", "price"])
         else:
@@ -100,5 +100,3 @@ def app():
 
 if __name__ == "__main__":
     app()
-
-

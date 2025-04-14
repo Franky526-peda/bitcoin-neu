@@ -6,51 +6,37 @@ from datetime import datetime
 from sklearn.linear_model import LinearRegression
 from streamlit_autorefresh import st_autorefresh
 
-# Muss immer die erste Streamlit-Anweisung sein
 st.set_page_config(page_title="Bitcoin Predictor", layout="centered")
-st_autorefresh(interval=60 * 1000, key="datarefresh")  # alle 60 Sekunden neu laden
+st_autorefresh(interval=60 * 1000, key="refresh")  # 1x pro Minute aktualisieren
 
 st.title("📈 Bitcoin Predictor – Live Vorhersagen mit RSI")
 
-# === Aktuellen Preis abrufen ===
+# === Aktuellen Preis von CoinGecko ===
 def get_current_price():
     try:
-        url = "https://api.coincap.io/v2/assets/bitcoin"
-        response = requests.get(url)
+        url = "https://api.coingecko.com/api/v3/simple/price"
+        params = {"ids": "bitcoin", "vs_currencies": "usd"}
+        response = requests.get(url, params=params)
         response.raise_for_status()
         data = response.json()
-
-        if "data" in data and "priceUsd" in data["data"]:
-            return float(data["data"]["priceUsd"])
-        else:
-            raise ValueError("API-Antwort enthält kein 'priceUsd'")
+        return float(data["bitcoin"]["usd"])
     except Exception as e:
         st.error(f"❌ Fehler beim Abrufen des aktuellen Preises: {e}")
         return None
 
-# === Historische Preisdaten abrufen ===
+# === Historische Daten von CoinGecko ===
 def get_historical_data():
     try:
-        end_time = int(datetime.utcnow().timestamp() * 1000)
-        start_time = end_time - (30 * 60 * 1000)  # letzte 30 Minuten
-
-        url = "https://api.coincap.io/v2/assets/bitcoin/history"
-        params = {
-            "interval": "m1",
-            "start": start_time,
-            "end": end_time
-        }
-
+        url = "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart"
+        params = {"vs_currency": "usd", "days": "1", "interval": "minutely"}
         response = requests.get(url, params=params)
         response.raise_for_status()
         data = response.json()
 
-        if "data" in data and isinstance(data["data"], list):
-            prices = [float(point["priceUsd"]) for point in data["data"]]
-            timestamps = [datetime.fromtimestamp(point["time"] / 1000) for point in data["data"]]
-            return pd.DataFrame({"timestamp": timestamps, "price": prices})
-        else:
-            raise ValueError("API-Antwort hat kein korrektes 'data'-Format.")
+        prices = data["prices"]
+        df = pd.DataFrame(prices, columns=["timestamp", "price"])
+        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+        return df.tail(30)  # letzte 30 Minuten
     except Exception as e:
         st.error(f"❌ Fehler beim Abrufen der historischen Daten: {e}")
         return pd.DataFrame()
@@ -60,10 +46,8 @@ def calculate_rsi(prices, period=14):
     delta = prices.diff()
     gain = delta.clip(lower=0)
     loss = -delta.clip(upper=0)
-
     avg_gain = gain.rolling(window=period).mean()
     avg_loss = loss.rolling(window=period).mean()
-
     rs = avg_gain / avg_loss
     rsi = 100 - (100 / (1 + rs))
     return rsi
@@ -74,7 +58,6 @@ def predict_prices(df):
     df["minute"] = np.arange(len(df))
     X = df[["minute"]]
     y = df["price"]
-
     model = LinearRegression().fit(X, y)
 
     return {

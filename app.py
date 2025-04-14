@@ -89,7 +89,8 @@ def app():
     st.write("🔄 Aktualisierung in 60 Sekunden...")
 
 # Stellt die automatische Aktualisierung alle 60 Sekunden sicher
-st.experimental_set_query_params()  # Setzt die URL zurück, um die Auto-Refresh-Logik zu aktivieren
+st.query_params()  # Setzt die URL zurück, um die Auto-Refresh-Logik zu aktivieren
 st.autorefresh(interval=60 * 1000)  # Aktualisiert die Seite alle 60 Sekunden
 
 app()  # Führt die App aus
+

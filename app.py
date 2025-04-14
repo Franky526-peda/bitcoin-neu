@@ -1,102 +1,75 @@
-import streamlit as st
 import requests
 import pandas as pd
-import numpy as np
+import streamlit as st
 from datetime import datetime
-import time
 
-# URL für den aktuellen Preis und historische Daten von CoinGecko
-current_price_url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
-historical_data_url = "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart"
+# Dein CoinMarketCap API-Schlüssel hier einfügen
+API_KEY = 'DEIN_API_SCHLÜSSEL_HIER_EINFÜGEN'
 
-# Funktion zum Abrufen des aktuellen Preises
+# Header für alle Anfragen
+headers = {
+    'Accepts': 'application/json',
+    'X-CMC_PRO_API_KEY': API_KEY,
+}
+
+# Funktion: aktuellen BTC-Preis abrufen
 def get_current_price():
+    url = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest'
+    params = {
+        'symbol': 'BTC',
+        'convert': 'USD'
+    }
     try:
-        response = requests.get(current_price_url)
+        response = requests.get(url, headers=headers, params=params)
         data = response.json()
-        
-        # Prüfen, ob 'bitcoin' und 'usd' vorhanden sind
-        if "bitcoin" in data and "usd" in data["bitcoin"]:
-            current_price = data["bitcoin"]["usd"]
-            return current_price
-        else:
-            st.error(f"Fehler beim Abrufen des aktuellen Preises: {data}")
-            return None
+        return data['data']['BTC']['quote']['USD']['price']
     except Exception as e:
         st.error(f"Fehler beim Abrufen des aktuellen Preises: {e}")
         return None
 
-# Funktion zum Abrufen historischer Daten (stundenweise oder täglich)
+# Funktion: historische BTC-Daten abrufen (täglich)
 def get_historical_data():
+    url = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/ohlcv/historical'
+    params = {
+        'symbol': 'BTC',
+        'convert': 'USD',
+        'time_start': '2024-12-01',
+        'time_end': datetime.now().strftime('%Y-%m-%d'),
+        'interval': 'daily'
+    }
     try:
-        params = {
-            "vs_currency": "usd",
-            "days": "1",  # 1 Tag
-            "interval": "hourly",  # Intervall auf stündlich setzen
-        }
-        response = requests.get(historical_data_url, params=params)
+        response = requests.get(url, headers=headers, params=params)
         data = response.json()
-
-        # Prüfen, ob 'prices' in den Daten vorhanden sind
-        if "prices" in data:
-            historical_prices = data["prices"]
-            return pd.DataFrame(historical_prices, columns=["timestamp", "price"])
-        else:
-            st.error(f"Fehler beim Abrufen der historischen Daten: {data}")
-            return None
+        quotes = data['data']['quotes']
+        df = pd.DataFrame([{
+            'timestamp': q['time_open'],
+            'price': q['quote']['USD']['close']
+        } for q in quotes])
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        df.set_index('timestamp', inplace=True)
+        return df
     except Exception as e:
         st.error(f"Fehler beim Abrufen der historischen Daten: {e}")
         return None
 
-# Funktion zum Berechnen des RSI
-def calculate_rsi(data, window=14):
-    delta = data.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
-    
-    rs = gain / loss
-    rsi = 100 - (100 / (1 + rs))
-    return rsi
-
-# Streamlit-App
+# Hauptfunktion der App
 def app():
-    st.set_page_config(page_title="Bitcoin Predictor", layout="centered")
     st.title("📈 Bitcoin Predictor – Live Vorhersagen mit RSI")
 
-    # Aktuellen Preis abrufen
-    current_price = get_current_price()
-    if current_price is not None:
+    # Aktueller Preis
+    price = get_current_price()
+    if price:
         st.subheader("💰 Aktueller Preis")
-        st.write(f"${current_price:,.2f}")
-    
-    # Historische Daten abrufen
-    historical_data = get_historical_data()
-    if historical_data is not None:
-        # Zeitstempel in Datetime umwandeln und als Index setzen
-        historical_data["timestamp"] = pd.to_datetime(historical_data["timestamp"], unit="ms")
-        historical_data.set_index("timestamp", inplace=True)
+        st.metric(label="Bitcoin Preis (USD)", value=f"${price:,.2f}")
 
-        # Berechnung des RSI
-        rsi = calculate_rsi(historical_data["price"])
-        st.subheader("📊 RSI der letzten 30 Minuten")
-        st.write(f"Letzter RSI-Wert: {rsi.iloc[-1]:.2f}")
+    # Historische Daten
+    df = get_historical_data()
+    if df is not None and not df.empty:
+        st.subheader("📊 Preisentwicklung")
+        st.line_chart(df['price'])
+    else:
+        st.warning("Keine historischen Daten verfügbar.")
 
-        # Vorhersage der nächsten 1, 5 und 10 Minuten
-        # Hier wird ein einfaches Random-Modell verwendet, um eine Vorhersage zu simulieren
-        st.subheader("📉 Preisvorhersage")
-
-        # Vorhersage für 1, 5, 10 Minuten
-        prediction_1min = current_price + np.random.uniform(-100, 100)
-        prediction_5min = current_price + np.random.uniform(-200, 200)
-        prediction_10min = current_price + np.random.uniform(-300, 300)
-
-        st.write(f"Vorhergesagter Preis in 1 Minute: ${prediction_1min:,.2f}")
-        st.write(f"Vorhergesagter Preis in 5 Minuten: ${prediction_5min:,.2f}")
-        st.write(f"Vorhergesagter Preis in 10 Minuten: ${prediction_10min:,.2f}")
-
-    # Verzögerung, um das API-Limit nicht zu überschreiten
-    time.sleep(120)  # 120 Sekunden Verzögerung
-    st.experimental_rerun()
-
+# App starten
 if __name__ == "__main__":
     app()

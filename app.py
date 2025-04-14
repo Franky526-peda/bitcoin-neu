@@ -2,98 +2,95 @@ import streamlit as st
 import requests
 import pandas as pd
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 
-# === Konfiguration ===
-st.set_page_config(page_title="Bitcoin Predictor", layout="centered")
-st.title("📈 Bitcoin Predictor – Live Vorhersagen mit RSI")
+# Dein API-Key
+API_KEY = "1c83ee150f8344eaa397d1d90a9da4f4"
 
-API_KEY_TWELVE = "1c83ee150f8344eaa397d1d90a9da4f4"
-
-# === Funktionen ===
+# Funktionen zum Abrufen der Daten
 def get_current_price():
+    url = f"https://api.twelvedata.com/price?symbol=BTC/USD&apikey={API_KEY}"
     try:
-        url = "https://api.coingecko.com/api/v3/simple/price"
-        params = {"ids": "bitcoin", "vs_currencies": "usd"}
-        response = requests.get(url, params=params)
+        response = requests.get(url)
         data = response.json()
-        return data["bitcoin"]["usd"]
+        return float(data["price"])
     except Exception as e:
         st.error(f"Fehler beim Abrufen des aktuellen Preises: {e}")
         return None
 
 def get_historical_data():
-    url = "https://api.twelvedata.com/time_series"
-    params = {
-        "symbol": "BTC/USD",
-        "interval": "1min",
-        "outputsize": 30,
-        "apikey": API_KEY_TWELVE
-    }
+    interval = "1min"
+    outputsize = 30  # letzte 30 Minuten
+    url = f"https://api.twelvedata.com/time_series?symbol=BTC/USD&interval={interval}&outputsize={outputsize}&apikey={API_KEY}"
     try:
-        response = requests.get(url, params=params)
+        response = requests.get(url)
         data = response.json()
         if "values" in data:
-            return list(reversed(data["values"]))  # Chronologisch sortieren
+            df = pd.DataFrame(data["values"])
+            df["datetime"] = pd.to_datetime(df["datetime"])
+            df["close"] = df["close"].astype(float)
+            df = df.sort_values("datetime")
+            return df
         else:
-            st.warning(f"Twelve Data Fehler: {data.get('message', 'Keine Daten erhalten')}")
-            return []
+            st.error("Keine historischen Daten verfügbar.")
+            return None
     except Exception as e:
         st.error(f"Fehler beim Abrufen der historischen Daten: {e}")
-        return []
+        return None
 
 def calculate_rsi(prices, period=14):
-    deltas = np.diff(prices)
-    gains = np.where(deltas > 0, deltas, 0)
-    losses = np.where(deltas < 0, -deltas, 0)
-    avg_gain = np.mean(gains[:period])
-    avg_loss = np.mean(losses[:period])
-
-    rsi = []
-    for i in range(period, len(prices)):
-        if avg_loss == 0:
-            rs = 0
-        else:
-            rs = avg_gain / avg_loss
-        rsi.append(100 - (100 / (1 + rs)))
-
-        if i + 1 < len(prices):
-            delta = deltas[i]
-            gain = max(delta, 0)
-            loss = max(-delta, 0)
-            avg_gain = (avg_gain * (period - 1) + gain) / period
-            avg_loss = (avg_loss * (period - 1) + loss) / period
-
-    return rsi[-1] if rsi else None
+    delta = prices.diff()
+    gain = np.where(delta > 0, delta, 0)
+    loss = np.where(delta < 0, -delta, 0)
+    avg_gain = pd.Series(gain).rolling(window=period).mean()
+    avg_loss = pd.Series(loss).rolling(window=period).mean()
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
 
 def predict_price(current_price):
-    # Einfaches Random-Modell (Demo)
-    return {
-        "1min": current_price * (1 + np.random.normal(0, 0.0005)),
-        "5min": current_price * (1 + np.random.normal(0, 0.0015)),
-        "10min": current_price * (1 + np.random.normal(0, 0.0025))
+    # Einfaches Random-Modell zur Simulation
+    predictions = {
+        "1 Minute": round(current_price * (1 + np.random.normal(0, 0.002)), 2),
+        "5 Minuten": round(current_price * (1 + np.random.normal(0, 0.005)), 2),
+        "10 Minuten": round(current_price * (1 + np.random.normal(0, 0.01)), 2),
     }
+    return predictions
 
-# === App-Logik ===
+# Streamlit App
+st.set_page_config(page_title="Bitcoin Predictor", layout="centered")
+
 def app():
-    st.subheader("💰 Aktueller Preis:")
-    price = get_current_price()
-    if price:
-        st.metric("Bitcoin Preis (USD)", f"${price:,.2f}")
+    st.title("📈 Bitcoin Predictor – Live Vorhersagen mit RSI")
 
-    st.subheader("📊 RSI der letzten 30 Minuten")
-    historical_data = get_historical_data()
+    # Aktueller Preis
+    current_price = get_current_price()
+    if current_price:
+        st.subheader("💰 Aktueller Preis:")
+        st.write(f"${current_price:,.2f}")
 
-    if historical_data:
-        prices = [float(entry['close']) for entry in historical_data]
-        rsi = calculate_rsi(prices)
-        if rsi:
-            st.write(f"Letzter RSI-Wert: **{rsi:.2f}**")
-        else:
-            st.write("Nicht genügend Daten zur Berechnung des RSI.")
+    # Historische Daten
+    df = get_historical_data()
+    if df is not None and len(df) >= 15:
+        st.subheader("📊 RSI der letzten 30 Minuten")
+        rsi_series = calculate_rsi(df["close"])
+        latest_rsi = rsi_series.iloc[-1]
+        st.write(f"Letzter RSI-Wert: **{latest_rsi:.2f}**")
 
+        # Vorhersagen
         st.subheader("📉 Preisvorhersage")
-        if price:
-            prediction = predict_price(price)
-            st.write
+        predictions = predict_price(current_price)
+        for timeframe, price in predictions.items():
+            st.write(f"Vorhergesagter Preis in {timeframe}: **${price:,.2f}**")
+    else:
+        st.warning("Keine historischen Preisdaten verfügbar – keine Vorhersage möglich.")
+
+    st.caption("🔄 Aktualisiert sich alle 60 Sekunden ...")
+
+# App starten
+app()
+
+# Automatisch alle 60 Sekunden neuladen
+time.sleep(60)
+st.experimental_rerun()

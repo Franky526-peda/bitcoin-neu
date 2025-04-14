@@ -34,7 +34,7 @@ def get_historical_data():
     params = {
         'vs_currency': 'usd',
         'days': '1',  # 1 Tag
-        'interval': 'minute'
+        'interval': 'minutely'  # Korrektes Intervall für minütliche Daten
     }
     try:
         response = requests.get(url, params=params)

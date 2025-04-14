@@ -1,96 +1,112 @@
 import streamlit as st
 import requests
-import pandas as pd
 import numpy as np
+import pandas as pd
+from sklearn.ensemble import RandomForestRegressor
 from datetime import datetime
-from sklearn.linear_model import LinearRegression
-from streamlit_autorefresh import st_autorefresh
+import time
 
+# Streamlit page configuration
 st.set_page_config(page_title="Bitcoin Predictor", layout="centered")
-st_autorefresh(interval=60 * 1000, key="refresh")  # 1x pro Minute aktualisieren
 
-st.title("📈 Bitcoin Predictor – Live Vorhersagen mit RSI")
-
-# === Aktuellen Preis von CryptoCompare ===
+# Aktuellen Bitcoin-Preis von CoinCap API abfragen
 def get_current_price():
+    url = "https://api.coincap.io/v2/assets/bitcoin"
     try:
-        url = "https://min-api.cryptocompare.com/data/price"
-        params = {"fsym": "BTC", "tsyms": "USD"}
-        response = requests.get(url, params=params)
-        response.raise_for_status()
+        response = requests.get(url)
         data = response.json()
-        return data["USD"]
+        if 'data' in data:
+            return float(data['data']['priceUsd'])
+        else:
+            st.error(f"Fehler beim Abrufen des aktuellen Preises: {data}")
+            return None
     except Exception as e:
-        st.error(f"❌ Fehler beim Abrufen des aktuellen Preises: {e}")
+        st.error(f"Fehler beim Abrufen des aktuellen Preises: {e}")
         return None
 
-# === Historische Daten von CryptoCompare ===
+# Historische Bitcoin-Daten für die letzten 30 Minuten abrufen
 def get_historical_data():
+    url = "https://api.coincap.io/v2/assets/bitcoin/history"
+    params = {
+        'interval': 'm1',  # Minute als Intervall
+        'start': str(int(time.time() - 3600)),  # 1 Stunde zurück
+        'end': str(int(time.time()))
+    }
     try:
-        url = "https://min-api.cryptocompare.com/data/v2/histoday"
-        params = {"fsym": "BTC", "tsym": "USD", "limit": 30, "toTs": int(datetime.now().timestamp())}
         response = requests.get(url, params=params)
-        response.raise_for_status()
         data = response.json()
-
-        prices = data["Data"]["Data"]
-        df = pd.DataFrame(prices)
-        df["time"] = pd.to_datetime(df["time"], unit="s")
-        df["price"] = df["close"]
-        return df
+        if 'data' in data:
+            return data['data']
+        else:
+            st.error(f"Fehler beim Abrufen der historischen Daten: {data}")
+            return None
     except Exception as e:
-        st.error(f"❌ Fehler beim Abrufen der historischen Daten: {e}")
-        return pd.DataFrame()
+        st.error(f"Fehler beim Abrufen der historischen Daten: {e}")
+        return None
 
-# === RSI berechnen ===
+# Random Forest Modell für die Vorhersage der Preise
+def predict_price(historical_prices):
+    time_steps = np.arange(len(historical_prices))  # Zeitstempel als Features
+    X = time_steps.reshape(-1, 1)  # Zeitstempel als Features für das Modell
+    y = historical_prices  # Preisdaten als Zielwert
+
+    # Modell trainieren
+    model = RandomForestRegressor(n_estimators=100)
+    model.fit(X, y)
+
+    # Vorhersage für die nächsten 3 Zeitpunkte (1, 5 und 10 Minuten)
+    future_times = np.array([[len(historical_prices)], [len(historical_prices) + 5], [len(historical_prices) + 10]])
+    predictions = model.predict(future_times)
+
+    return predictions
+
+# Streamlit UI
+def app():
+    # Titel
+    st.title("📈 Bitcoin Predictor – Live Vorhersagen mit RSI")
+
+    # Aktuellen Preis abrufen
+    current_price = get_current_price()
+    if current_price:
+        st.subheader(f"💰 Aktueller Preis: ${current_price:,.2f}")
+
+    # Historische Daten abrufen
+    historical_data = get_historical_data()
+    if historical_data:
+        # Preisdaten extrahieren
+        historical_prices = [float(data_point['priceUsd']) for data_point in historical_data]
+
+        # RSI berechnen
+        rsi = calculate_rsi(historical_prices)
+        st.subheader(f"📊 RSI der letzten 30 Minuten")
+        st.write(f"Letzter RSI-Wert: {rsi:.2f}")
+
+        # Vorhersage berechnen
+        predictions = predict_price(historical_prices)
+        st.subheader(f"📉 Preisvorhersage")
+        st.write(f"Vorhergesagter Preis in 1 Minute: ${predictions[0]:,.2f}")
+        st.write(f"Vorhergesagter Preis in 5 Minuten: ${predictions[1]:,.2f}")
+        st.write(f"Vorhergesagter Preis in 10 Minuten: ${predictions[2]:,.2f}")
+
+# RSI-Berechnung
 def calculate_rsi(prices, period=14):
-    delta = prices.diff()
-    gain = delta.clip(lower=0)
-    loss = -delta.clip(upper=0)
-    avg_gain = gain.rolling(window=period).mean()
-    avg_loss = loss.rolling(window=period).mean()
+    if len(prices) < period:
+        return None  # Nicht genug Daten für RSI-Berechnung
+    deltas = np.diff(prices)
+    gain = np.where(deltas > 0, deltas, 0)
+    loss = np.where(deltas < 0, -deltas, 0)
+
+    avg_gain = np.mean(gain[-period:])
+    avg_loss = np.mean(loss[-period:])
+
+    if avg_loss == 0:
+        return 100  # Verhindert Division durch Null
+
     rs = avg_gain / avg_loss
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
-# === Preisvorhersage mit Linear Regression ===
-def predict_prices(df):
-    df = df.reset_index(drop=True)
-    df["minute"] = np.arange(len(df))
-    X = df[["minute"]]
-    y = df["price"]
-    model = LinearRegression().fit(X, y)
-
-    return {
-        1: round(model.predict([[len(df) + 1]])[0], 2),
-        5: round(model.predict([[len(df) + 5]])[0], 2),
-        10: round(model.predict([[len(df) + 10]])[0], 2)
-    }
-
-# === Hauptfunktion ===
-def main():
-    price = get_current_price()
-    if price:
-        st.subheader("💰 Aktueller Preis")
-        st.write(f"${price:,.2f}")
-    else:
-        st.warning("❌ Konnte aktuellen Preis nicht abrufen.")
-
-    df = get_historical_data()
-    if not df.empty and len(df) >= 15:
-        st.subheader("📊 RSI der letzten 30 Minuten")
-        rsi_series = calculate_rsi(df["price"])
-        last_rsi = round(rsi_series.iloc[-1], 2)
-        st.metric(label="Letzter RSI-Wert", value=last_rsi)
-
-        st.subheader("📉 Preisvorhersage")
-        predictions = predict_prices(df)
-        st.write(f"**Vorhergesagter Preis in 1 Minute:** ${predictions[1]:,.2f}")
-        st.write(f"**Vorhergesagter Preis in 5 Minuten:** ${predictions[5]:,.2f}")
-        st.write(f"**Vorhergesagter Preis in 10 Minuten:** ${predictions[10]:,.2f}")
-    else:
-        st.warning("Nicht genügend Daten für RSI oder Vorhersage vorhanden.")
-
+# Automatische Aktualisierung alle 60 Sekunden
 if __name__ == "__main__":
-    main()
+    app()
 

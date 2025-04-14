@@ -3,15 +3,14 @@ import requests
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
-from datetime import datetime
 import time
 
 # Streamlit page configuration
 st.set_page_config(page_title="Bitcoin Predictor", layout="centered")
 
-# Aktuellen Bitcoin-Preis von CoinCap API abfragen
+# Aktuellen Bitcoin-Preis von CoinGecko API abfragen
 def get_current_price():
-    url = "https://api.coincap.io/v2/assets/bitcoin"
+    url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
     try:
         response = requests.get(url)
         data = response.json()
@@ -19,15 +18,11 @@ def get_current_price():
         # Protokolliere die API-Antwort, um das genaue Format zu überprüfen
         st.write("API-Antwort (Aktueller Preis):", data)
 
-        # Überprüfen der Struktur der Antwort
-        if 'data' in data:
-            if 'priceUsd' in data['data']:
-                return float(data['data']['priceUsd'])
-            else:
-                st.error(f"Fehler beim Abrufen des aktuellen Preises: Kein 'priceUsd' in den Daten vorhanden.")
-                return None
+        # Preis extrahieren
+        if 'bitcoin' in data and 'usd' in data['bitcoin']:
+            return data['bitcoin']['usd']
         else:
-            st.error(f"Fehler beim Abrufen des aktuellen Preises: Keine 'data'-Sektion in der Antwort.")
+            st.error(f"Fehler beim Abrufen des aktuellen Preises: Kein 'priceUsd' in den Daten vorhanden.")
             return None
     except Exception as e:
         st.error(f"Fehler beim Abrufen des aktuellen Preises: {e}")
@@ -35,11 +30,11 @@ def get_current_price():
 
 # Historische Bitcoin-Daten für die letzten 30 Minuten abrufen
 def get_historical_data():
-    url = "https://api.coincap.io/v2/assets/bitcoin/history"
+    url = "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart"
     params = {
-        'interval': 'm1',  # Minute als Intervall
-        'start': str(int(time.time() - 3600)),  # 1 Stunde zurück
-        'end': str(int(time.time()))
+        'vs_currency': 'usd',
+        'days': '1',  # 1 Tag
+        'interval': 'minute'
     }
     try:
         response = requests.get(url, params=params)
@@ -48,14 +43,9 @@ def get_historical_data():
         # Protokolliere die API-Antwort, um das genaue Format zu überprüfen
         st.write("API-Antwort (Historische Daten):", data)
 
-        # Überprüfen, ob 'data' vorhanden ist und den Preis korrekt extrahieren
-        if 'data' in data:
-            historical_prices = []
-            for data_point in data['data']:
-                if 'priceUsd' in data_point:
-                    historical_prices.append(float(data_point['priceUsd']))
-                else:
-                    st.warning(f"Kein 'priceUsd' für Datenpunkt {data_point}")
+        # Überprüfen, ob 'prices' vorhanden ist und den Preis korrekt extrahieren
+        if 'prices' in data:
+            historical_prices = [price[1] for price in data['prices']]
             return historical_prices
         else:
             st.error(f"Fehler beim Abrufen der historischen Daten: {data}")

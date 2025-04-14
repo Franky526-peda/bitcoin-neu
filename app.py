@@ -1,41 +1,36 @@
 import streamlit as st
 import pandas as pd
 import requests
-import time
 from sklearn.linear_model import LinearRegression
 from datetime import datetime
+from streamlit_autorefresh import st_autorefresh
 
-# Muss GANZ OBEN stehen
+# Muss ganz oben stehen!
 st.set_page_config(page_title="Bitcoin Predictor", layout="centered")
 
-# Funktion zur automatischen Aktualisierung
-def auto_refresh():
-    st.experimental_rerun()
+# Automatische Aktualisierung alle 60 Sekunden
+st_autorefresh(interval=60 * 1000, key="auto_refresh")
 
-# CSV-Datei zur Speicherung
 CSV_FILE = "btc_data.csv"
 
 # RSI manuell berechnen
 def compute_rsi(prices, window=14):
     if len(prices) < window:
         return None
-    deltas = prices.diff()
-    gains = deltas.where(deltas > 0, 0)
-    losses = -deltas.where(deltas < 0, 0)
-    avg_gain = gains.rolling(window=window).mean()
-    avg_loss = losses.rolling(window=window).mean()
+    delta = prices.diff()
+    gain = delta.where(delta > 0, 0)
+    loss = -delta.where(delta < 0, 0)
+    avg_gain = gain.rolling(window).mean()
+    avg_loss = loss.rolling(window).mean()
     rs = avg_gain / avg_loss
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
-# Funktion: Bitcoin-Preis abrufen
+# Bitcoin-Preis abrufen
 def get_current_price():
     try:
         url = "https://api.coingecko.com/api/v3/simple/price"
-        params = {
-            "ids": "bitcoin",
-            "vs_currencies": "usd"
-        }
+        params = {"ids": "bitcoin", "vs_currencies": "usd"}
         response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
         data = response.json()
@@ -44,10 +39,10 @@ def get_current_price():
         st.error(f"❌ Fehler beim Abrufen der Daten: {e}")
         return None
 
-# Vorhersagefunktion mit einfachem ML-Modell
+# Vorhersagefunktion
 def make_prediction(df):
     if len(df) < 10:
-        return None  # Nicht genug Daten
+        return None
     df['Timestamp'] = pd.to_datetime(df['Timestamp'])
     df['Minutes'] = (df['Timestamp'] - df['Timestamp'].min()).dt.total_seconds() / 60
     model = LinearRegression()
@@ -55,7 +50,7 @@ def make_prediction(df):
     future_minutes = df['Minutes'].max() + 1
     return model.predict([[future_minutes]])[0]
 
-# CSV lesen oder erstellen
+# CSV lesen
 def load_data():
     try:
         return pd.read_csv(CSV_FILE)
@@ -69,12 +64,12 @@ def save_data(df):
 # Haupt-App
 def app():
     st.title("📈 Bitcoin Predictor – Live Vorhersagen mit RSI")
-    
+
     price = get_current_price()
     if price is None:
         st.warning("❌ Fehler beim Abrufen der Bitcoin-Daten. Bitte später erneut versuchen.")
         return
-    
+
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     df = load_data()
     new_row = pd.DataFrame([[timestamp, price]], columns=["Timestamp", "Price"])
@@ -89,7 +84,6 @@ def app():
     else:
         st.info("📉 Nicht genügend Daten für Vorhersage")
 
-    # RSI berechnen
     df['Price'] = pd.to_numeric(df['Price'], errors='coerce')
     rsi_series = compute_rsi(df['Price'])
     latest_rsi = rsi_series.iloc[-1] if rsi_series is not None else None
@@ -99,12 +93,7 @@ def app():
     else:
         st.write("📊 RSI wird berechnet… (mind. 14 Datenpunkte erforderlich)")
 
-    # Verlauf anzeigen
     st.line_chart(df.set_index("Timestamp")["Price"])
-
-    # Auto-Refresh alle 60 Sekunden
-    time.sleep(60)
-    auto_refresh()
 
 if __name__ == "__main__":
     app()

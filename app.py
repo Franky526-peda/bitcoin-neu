@@ -86,10 +86,9 @@ def app():
     st.write(f"Vorhergesagter Preis in 1 Minute(n): ${predicted_price_1_min:.2f}")
     st.write(f"Vorhergesagter Preis in 5 Minute(n): ${predicted_price_5_min:.2f}")
     st.write(f"Vorhergesagter Preis in 10 Minute(n): ${predicted_price_10_min:.2f}")
-    
+
     # Button für manuelle Aktualisierung
-    if st.button("Daten aktualisieren"):
-        st.experimental_rerun()  # Manuelles Neuladen der App nach dem Drücken des Buttons
+    st.button("Daten aktualisieren")  # Button wird angezeigt, aber führt keinen Fehler aus
 
 # Aufruf der Haupt-App
 app()

@@ -6,45 +6,56 @@ from datetime import datetime
 from sklearn.linear_model import LinearRegression
 from streamlit_autorefresh import st_autorefresh
 
-# Muss an erster Stelle stehen!
+# Muss immer die erste Streamlit-Anweisung sein
 st.set_page_config(page_title="Bitcoin Predictor", layout="centered")
-
-# Seite wird alle 60 Sekunden automatisch neu geladen
-st_autorefresh(interval=60 * 1000, key="datarefresh")
+st_autorefresh(interval=60 * 1000, key="datarefresh")  # alle 60 Sekunden neu laden
 
 st.title("📈 Bitcoin Predictor – Live Vorhersagen mit RSI")
 
-# === Aktuellen Preis von CoinCap abrufen ===
+# === Aktuellen Preis abrufen ===
 def get_current_price():
     try:
         url = "https://api.coincap.io/v2/assets/bitcoin"
         response = requests.get(url)
+        response.raise_for_status()
         data = response.json()
-        price = float(data['data']['priceUsd'])
-        return round(price, 2)
+
+        if "data" in data and "priceUsd" in data["data"]:
+            return float(data["data"]["priceUsd"])
+        else:
+            raise ValueError("API-Antwort enthält kein 'priceUsd'")
     except Exception as e:
         st.error(f"❌ Fehler beim Abrufen des aktuellen Preises: {e}")
         return None
 
-# === Historische Preisdaten der letzten 30 Minuten (1-Minuten-Auflösung) ===
+# === Historische Preisdaten abrufen ===
 def get_historical_data():
     try:
+        end_time = int(datetime.utcnow().timestamp() * 1000)
+        start_time = end_time - (30 * 60 * 1000)  # letzte 30 Minuten
+
         url = "https://api.coincap.io/v2/assets/bitcoin/history"
         params = {
             "interval": "m1",
-            "start": int((datetime.utcnow().timestamp() - 60 * 30) * 1000),
-            "end": int(datetime.utcnow().timestamp() * 1000)
+            "start": start_time,
+            "end": end_time
         }
+
         response = requests.get(url, params=params)
+        response.raise_for_status()
         data = response.json()
-        prices = [float(item['priceUsd']) for item in data['data']]
-        timestamps = [datetime.fromtimestamp(item['time'] / 1000) for item in data['data']]
-        return pd.DataFrame({"timestamp": timestamps, "price": prices})
+
+        if "data" in data and isinstance(data["data"], list):
+            prices = [float(point["priceUsd"]) for point in data["data"]]
+            timestamps = [datetime.fromtimestamp(point["time"] / 1000) for point in data["data"]]
+            return pd.DataFrame({"timestamp": timestamps, "price": prices})
+        else:
+            raise ValueError("API-Antwort hat kein korrektes 'data'-Format.")
     except Exception as e:
         st.error(f"❌ Fehler beim Abrufen der historischen Daten: {e}")
         return pd.DataFrame()
 
-# === RSI-Berechnung ===
+# === RSI berechnen ===
 def calculate_rsi(prices, period=14):
     delta = prices.diff()
     gain = delta.clip(lower=0)
@@ -57,24 +68,22 @@ def calculate_rsi(prices, period=14):
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
-# === Preisvorhersage mit einfacher linearer Regression ===
+# === Preisvorhersage mit Linear Regression ===
 def predict_prices(df):
     df = df.reset_index(drop=True)
-    df['minute'] = np.arange(len(df))
-
-    X = df[['minute']]
-    y = df['price']
+    df["minute"] = np.arange(len(df))
+    X = df[["minute"]]
+    y = df["price"]
 
     model = LinearRegression().fit(X, y)
 
-    preds = {
+    return {
         1: round(model.predict([[len(df) + 1]])[0], 2),
         5: round(model.predict([[len(df) + 5]])[0], 2),
         10: round(model.predict([[len(df) + 10]])[0], 2)
     }
-    return preds
 
-# === Hauptlogik ===
+# === Hauptfunktion ===
 def main():
     price = get_current_price()
     if price:
@@ -84,7 +93,6 @@ def main():
         st.warning("❌ Konnte aktuellen Preis nicht abrufen.")
 
     df = get_historical_data()
-
     if not df.empty and len(df) >= 15:
         st.subheader("📊 RSI der letzten 30 Minuten")
         rsi_series = calculate_rsi(df["price"])
@@ -101,3 +109,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

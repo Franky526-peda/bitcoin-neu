@@ -16,14 +16,14 @@ def calculate_rsi(prices, period=14):
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
-# Aktuellen BTC-Preis von CoinDesk abrufen
+# Aktuellen BTC-Preis von CoinGecko abrufen
 def get_current_btc_price():
-    url = "https://api.coindesk.com/v1/bpi/currentprice/USD.json"
+    url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
     try:
         response = requests.get(url, timeout=10)
         response.raise_for_status()
         data = response.json()
-        price = float(data['bpi']['USD']['rate'].replace(',', ''))
+        price = data['bitcoin']['usd']
         return price
     except Exception as e:
         st.error(f"❌ Fehler beim Abrufen des aktuellen Preises: {e}")
@@ -68,3 +68,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

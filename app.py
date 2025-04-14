@@ -4,7 +4,7 @@ import streamlit as st
 from datetime import datetime
 
 # Dein CoinMarketCap API-Schlüssel hier einfügen
-API_KEY = f8d360d4-146c-4f00-8a05-b2f156224c2a
+API_KEY = 'f8d360d4-146c-4f00-8a05-b2f156224c2a'
 
 # Header für alle Anfragen
 headers = {

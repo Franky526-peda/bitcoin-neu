@@ -105,3 +105,4 @@ if __name__ == "__main__":
         main()
         time.sleep(60)  # 60 Sekunden warten, bevor die Daten erneut abgerufen werden
         auto_refresh()  # Seite automatisch neu laden
+

@@ -86,10 +86,10 @@ def app():
     st.write(f"Vorhergesagter Preis in 1 Minute(n): ${predicted_price_1_min:.2f}")
     st.write(f"Vorhergesagter Preis in 5 Minute(n): ${predicted_price_5_min:.2f}")
     st.write(f"Vorhergesagter Preis in 10 Minute(n): ${predicted_price_10_min:.2f}")
-    st.write("🔄 Aktualisierung in 60 Sekunden...")
-
-    # Automatische Aktualisierung alle 60 Sekunden
-    st.autorefresh(interval=60 * 1000)
+    
+    # Button für manuelle Aktualisierung
+    if st.button("Daten aktualisieren"):
+        st.experimental_rerun()
 
 # Aufruf der Haupt-App
 app()

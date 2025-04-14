@@ -3,7 +3,6 @@ import requests
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LinearRegression
-import time
 
 # API Key für Twelve Data
 API_KEY = "1c83ee150f8344eaa397d1d90a9da4f4"
@@ -89,9 +88,12 @@ def app():
     st.write(f"Vorhergesagter Preis in 10 Minute(n): ${predicted_price_10_min:.2f}")
     st.write("🔄 Aktualisierung in 60 Sekunden...")
 
-    # Warten und Seite neu laden (ohne st.experimental_rerun)
-    time.sleep(60)
-    st.empty()  # Das leere Container hilft beim dynamischen Neuladen der App
+    # Dynamische Aktualisierung mit st.empty()
+    container = st.empty()  # leere Container für die wiederholte Anzeige
+    container.write("🔄 Aktualisierung in 60 Sekunden...")
+
+    # Warteschleife für die automatische Seiteaktualisierung
+    st.experimental_rerun()  # Automatische Neulade-Funktion
 
 # Aufruf der Haupt-App
 app()
